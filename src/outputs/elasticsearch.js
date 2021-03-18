@@ -145,7 +145,7 @@ class ElasticsearchOutput extends OutputNode {
 				await this.client.indices.getTemplate({
 					name: tpl.name
 				})
-				this.log.info('Template already created')
+				this.log.debug('Template already created')
 				return
 			} catch (err) {
 				this.log.warn('Template "%s" not created', tpl.name)
@@ -167,7 +167,7 @@ class ElasticsearchOutput extends OutputNode {
 	async start() {
 		this.log.debug('Starting...')
 		await this.setupTemplate()
-		this.log.info('Connected')
+		this.log.debug('Connected')
 		this.startFlushTimeout()
 		await super.start()
 	}

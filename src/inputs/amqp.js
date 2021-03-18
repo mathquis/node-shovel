@@ -145,7 +145,7 @@ class AmqpInput extends InputNode {
 	}
 
 	async onConnect() {
-		this.log.info('Connected')
+		this.log.debug('Connected')
 
 		this.channel = await this.connection.createChannel()
 
