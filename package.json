@@ -1,0 +1,27 @@
+{
+  "name": "@mathquis/node-shovel",
+  "version": "1.0.0",
+  "description": "Shovel messages from here to there",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "shovel": "src/cli.js"
+  },
+  "author": "Mathieu \"Fastjack\" Quisefit",
+  "license": "ISC",
+  "dependencies": {
+    "@elastic/elasticsearch": "^7.11.0",
+    "@koa/router": "^10.0.0",
+    "amqplib": "^0.7.1",
+    "convict": "^6.0.1",
+    "js-yaml": "^4.0.0",
+    "json5": "^2.2.0",
+    "koa": "^2.13.1",
+    "prom-client": "^13.1.0",
+    "string-template": "^1.0.0",
+    "winston": "^3.3.3"
+  }
+}
