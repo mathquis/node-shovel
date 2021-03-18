@@ -46,6 +46,14 @@ output:
     password: password
 ```
 
+### Available input
+
+- amqp
+
+### Available output
+
+- elasticsearch
+
 ### Parser
 
 ```javascript
