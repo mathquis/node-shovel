@@ -11,4 +11,4 @@ COPY src src
 
 EXPOSE 3001
 
-ENTRYPOINT ["npm", "run"]
+ENTRYPOINT ["npm", "run", "start"]
