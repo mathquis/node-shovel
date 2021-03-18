@@ -33,7 +33,7 @@ class ElasticsearchOutput extends OutputNode {
 		this.queue			= []
 		this.flushTimeout	= null
 
-		this.compileIndexTemplate(this.getConfig('index'))
+		this.compileIndexTemplate(this.indexShardName)
 	}
 
 	get configSchema() {
@@ -101,43 +101,66 @@ class ElasticsearchOutput extends OutputNode {
 				format: Number,
 				arg: 'es-fail-timeout'
 			},
-			index: {
+			index_name: {
 				doc: '',
-				default: 'message-{YYYY}',
-				arg: 'es-index',
-				env: 'ELASTICSEARCH_INDEX'
+				default: 'message',
+				arg: 'es-index-name',
+				env: 'ELASTICSEARCH_INDEX_NAME'
 			},
-			template_name: {
+			index_shard: {
 				doc: '',
-				default: 'messages',
-				arg: 'es-template-name'
+				default: '{YYYY}',
+				arg: 'es-index-shard',
+				env: 'ELASTICSEARCH_INDEX_SHARD'
+			},
+			template: {
+				doc: '',
+				default: '',
+				arg: 'es-template'
 			}
 		}
 	}
 
+	get indexShardName() {
+		const indexShard = this.getConfig('index_shard')
+		return this.getConfig('index_name') + ( indexShard ? `-${indexShard}` : '' )
+	}
+
 	async setupTemplate() {
-		if ( this.template ) {
-			this.log.debug('Setting up template "%s"...', this.template.name)
+		const templateFile = this.getConfig('template')
+		if ( templateFile ) {
+			const templatePath = Path.resolve(process.cwd(), templateFile)
+			this.log.debug('Setting up template "%s"...', templatePath)
+
+			let tpl
+			try {
+				tpl = require(templatePath)
+				if ( typeof tpl === 'function' ) {
+					tpl = tpl(this.config)
+				}
+			} catch (err) {
+				this.emit('error', new Error(`Template "${templatePath}" not found: ${err.message}`))
+				return
+			}
 
 			try {
 				await this.client.indices.getTemplate({
-					name: this.template.name
+					name: tpl.name
 				})
 				this.log.info('Template already created')
 				return
 			} catch (err) {
-				this.log.warn('Template "%s" not found', this.template.name)
+				this.log.warn('Template "%s" not created', tpl.name)
 			}
 
 			try {
 				this.log.debug('Creating template...')
 				await this.client.indices.putTemplate({
-					name: this.template.name,
-					body: this.template.content
+					name: tpl.name,
+					body: tpl.template
 				})
 				this.log.info('Created template')
 			} catch (err) {
-				this.log.error(err)
 				this.emit('error', new Error(`Unable to create template: ${err.message}`))
 			}
 		}
@@ -163,10 +186,7 @@ class ElasticsearchOutput extends OutputNode {
 	}
 
 	formatIndexName(message) {
-		let index = message.getMeta(META_INDEX_TEMPLATE)
-		if ( !index ) {
-			index = this.getConfig('index')
-		}
+		const index = message.getMeta(META_INDEX_TEMPLATE) || this.indexShardName
 		const indexTemplate = this.indexTemplates.get(index)
 		if ( !indexTemplate ) {
 			throw new Error(`Unknown index "${index}"`)

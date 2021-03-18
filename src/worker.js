@@ -4,7 +4,7 @@ const Prometheus	= require('prom-client')
 const YAML			= require('js-yaml')
 const Config		= require('./config')
 const Logger 		= require('./logger')
-const Pipeline		= require('./pipeline')
+const Processor		= require('./processor')
 
 module.exports = async () => {
 	const log = Logger.child({category: 'worker'})
@@ -24,28 +24,36 @@ module.exports = async () => {
 		process.exit(9)
 	}
 
-	// const indexTemplate = IndexTemplate(Config.get('elasticsearch.template_name'))
-	let worker
 	try {
-		worker = new Pipeline(pipelineConfig)
+		const {name, input, pipeline, output} = pipelineConfig
+
+		const worker = new Processor(name, {
+			metrics: {
+				labels: Config.get('metrics.labels')
+			}
+		})
+
+		worker.setupInput(input)
+		worker.setupPipeline(pipeline)
+		worker.setupOutput(output)
+
+		process
+			.on('SIGINT', async () => {
+				await worker.stop()
+				process.exit()
+			})
+			.on('SIGTERM', async () => {
+				await worker.stop()
+				process.exit()
+			})
+			.on('uncaughtException', async err => {
+				await worker.stop()
+				process.exit(1)
+			})
+
+		await worker.start()
 	} catch (err) {
 		log.error(`${err.message}`)
 		process.exit(9)
 	}
-
-	process
-		.on('SIGINT', async () => {
-			await worker.stop()
-			process.exit()
-		})
-		.on('SIGTERM', async () => {
-			await worker.stop()
-			process.exit()
-		})
-		.on('uncaughtException', async err => {
-			await worker.stop()
-			process.exit(1)
-		})
-
-	await worker.start()
 }

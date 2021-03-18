@@ -71,6 +71,10 @@ class AmqpInput extends InputNode {
 		}
 	}
 
+	get consumerTag() {
+		return 'amqp-shovel-' + consumers
+	}
+
 	get queueSize() {
 		const queueSize = parseInt(this.getConfig('queue_size'))
 		if ( !queueSize || isNaN(queueSize) ) {

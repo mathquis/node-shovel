@@ -45,9 +45,16 @@ const config = Convict({
 			default: true,
 			arg: 'metrics-enabled'
 		},
+		labels: {
+			doc: '',
+			default: [],
+			format: Array,
+			arg: 'metrics-label'
+		},
 		route: {
 			doc: '',
-			default: '/metrics'
+			default: '/metrics',
+			arg: 'metrics-route'
 		},
 		port: {
 			doc: '',

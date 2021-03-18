@@ -1,46 +1,63 @@
 const Stream        = require('stream')
-const EventEmitter  = require('events')
+const Path          = require('path')
 const Prometheus    = require('prom-client')
+const Convict       = require('convict')
+const Logger        = require('./logger')
 
 const registers = []
 
-class Processor extends EventEmitter {
-    constructor(name, input, pipeline, output) {
-        super()
+class Processor {
+    constructor(name, options) {
+        this.config = Convict({
+            metrics: {
+                labels: {
+                    doc: '',
+                    default: [],
+                    format: Array
+                }
+            }
+        })
+        this.config.load(options)
+        this.config.validate({allowed: 'strict'})
+
         this.name = name
+        this.log = Logger.child({category: this.name})
+        this.setupMetrics(options)
+    }
 
-        this.setupMetrics()
-
-        this.setupInput(input)
-        this.setupPipeline(pipeline)
-        this.setupOutput(output)
-
+    async start() {
         // Chain everything
         this.input
             .pipe(this.pipeline)
             .pipe(this.output)
-    }
 
-    async start() {
         await this.output.start()
         await this.input.start()
-        this.emit('started')
     }
 
     async stop() {
         await this.input.stop()
         await this.output.stop()
-        this.emit('stopped')
     }
 
-    setupMetrics() {
+    setupMetrics(options) {
+        const defaultLabels = options.metrics.labels.reduce((labels, label) => {
+            const [key, value] = label.split('=')
+            labels[key] = value
+            this.log.debug('Adding metrics label %s = %s', key, value)
+            return labels
+        }, {})
+
+        const labelNames = [...Object.keys(defaultLabels), 'kind', 'pipeline']
+
         this.register = new Prometheus.Registry()
+
         registers.push(this.register)
+
         Prometheus.AggregatorRegistry.setRegistries(registers)
 
         this.register.setDefaultLabels({
-            node: process.env['K8S_NODE_NAME'] || '',
-            pod: process.env['K8S_POD_NAME'] || '',
+            ...defaultLabels,
             pipeline: this.name
         })
 
@@ -48,54 +65,72 @@ class Processor extends EventEmitter {
             name: 'message_processed',
             help: 'Number of messages',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.processingMessage = new Prometheus.Gauge({
             name: 'message_processing',
             help: 'Number of messages currently in the processing pipeline',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.inputStatus = new Prometheus.Gauge({
             name: 'input_status',
             help: 'Status of the input connection',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.inputMessage = new Prometheus.Counter({
             name: 'input_message',
             help: 'Number of input messages',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.pipelineMessage = new Prometheus.Counter({
             name: 'pipeline_message',
             help: 'Number of pipeline messages',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.outputMessage = new Prometheus.Counter({
             name: 'output_message',
             help: 'Number of output messages',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
 
         this.outputFlush = new Prometheus.Counter({
             name: 'output_flush',
             help: 'Number of output flushes',
             registers: [this.register],
-            labelNames: ['node', 'pod', 'kind', 'pipeline']
+            labelNames
         })
     }
 
     setupInput(input) {
-        this.input = input
+        const {use = '', parser = {}, options = {}} = input || {}
+        let inputClass
+        try {
+            inputClass = require('./inputs/' + use)
+        } catch (err) {
+            throw new Error(`Unknown input type "${use} (${err.message})`)
+        }
+        let parserFn
+        try {
+            parserFn = require(Path.resolve(process.cwd(), parser.use))(parser.options)
+        } catch (err) {
+            throw new Error(`Unknown parser "${parser.use} (${err.message})`)
+        }
+        try {
+            this.input = new inputClass(parserFn, input.options)
+        } catch (err) {
+            throw new Error(`Input error: ${err.message}`)
+        }
+
         this.input
             .on('up', () => {
                 this.inputStatus.set({kind: 'up'}, 1)
@@ -104,10 +139,8 @@ class Processor extends EventEmitter {
                 this.inputStatus.set({kind: 'up'}, 0)
             })
             .on('error', err => {
-                const error = new Error(`Input error: ${err.message}`)
-                error.stack = err.stack
+                this.log.error(`Input error: ${err.message}`)
                 this.inputMessage.inc({kind: 'error'})
-                this.emit('error', error)
             })
             .on('data', () => {
                 this.processingMessage.inc()
@@ -127,11 +160,18 @@ class Processor extends EventEmitter {
                 this.processingMessage.dec()
                 this.inputMessage.inc({kind: 'rejected'})
                 this.globalMessage.inc()
-                this.emit('reject', message)
             })
     }
 
     setupPipeline(pipeline) {
+        const {use = '', options = {}} = pipeline || {}
+        let pipelineFn
+        try {
+            pipelineFn = require(Path.resolve(process.cwd(), use))(options)
+        } catch (err) {
+            throw new Error(`Unknown pipeline "${use} (${err.message})`)
+        }
+
         this.pipeline = new Stream.Transform({
             readableObjectMode: true,
             writableObjectMode: true,
@@ -139,7 +179,7 @@ class Processor extends EventEmitter {
                 this.pipelineMessage.inc({kind: 'received'})
                 try {
                     await new Promise((resolve, reject) => {
-                        pipeline(message, (err, messages) => {
+                        pipelineFn(message, (err, messages) => {
                             if ( !messages ) {
                                 if ( err ) {
                                     this.pipeline.emit('error', err)
@@ -157,12 +197,8 @@ class Processor extends EventEmitter {
                         })
                     })
                 } catch (err) {
-                    this.pipeline.emit('nack', message)
-                    log.error('Pipeline error: %s', err.message)
-                    const error = new Error(`Pipeline error: ${err.message}`)
-                    error.stack = err.stack
-                    this.pipeline.emit('error', error)
-                    return
+                    this.input.nack(message)
+                    this.pipeline.emit('error', err)
                 }
                 done()
             }
@@ -170,10 +206,8 @@ class Processor extends EventEmitter {
 
         this.pipeline
             .on('error', err => {
-                const error = new Error(`Pipeline error: ${err.message}`)
-                error.stack = err.stack
                 this.pipelineMessage.inc({kind: 'error'})
-                this.emit('error', error)
+                this.log.error(`Pipeline error: ${err.message}`)
             })
             .on('ack', message => {
                 this.pipelineMessage.inc({kind: 'acked'})
@@ -193,13 +227,23 @@ class Processor extends EventEmitter {
     }
 
     setupOutput(output) {
-        this.output = output
+        const {use = '', parser = {}, options = {}} = output || {}
+        let outputClass
+        try {
+            outputClass = require('./outputs/' + output.use)
+        } catch (err) {
+            throw new Error(`Unknown output type "${use} (${err.message})`)
+        }
+        try {
+            this.output = new outputClass(output.options)
+        } catch (err) {
+            throw new Error(`Output error: ${err.message}`)
+        }
+
         this.output
             .on('error', err => {
-                const error = new Error(`Output error: ${err.message}`)
-                error.stack = err.stack
                 this.outputMessage.inc({kind: 'error'})
-                this.emit('error', error)
+                this.log.error(`Output error: ${err.message}`)
             })
             .on('incoming', message => {
                 this.outputMessage.inc({kind: 'received'})
@@ -218,7 +262,6 @@ class Processor extends EventEmitter {
             })
             .on('flush', () => {
                 this.outputFlush.inc()
-                this.emit('flush')
             })
     }
 }
