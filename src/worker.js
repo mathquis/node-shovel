@@ -1,10 +1,12 @@
-const File			= require('fs')
-const Path			= require('path')
-const Prometheus	= require('prom-client')
-const YAML			= require('js-yaml')
-const Config		= require('./config')
-const Logger 		= require('./logger')
-const Processor		= require('./processor')
+const File					= require('fs')
+const Path					= require('path')
+const Prometheus			= require('prom-client')
+const YAML					= require('js-yaml')
+const Config				= require('./config')
+const Logger				= require('./logger')
+const Processor				= require('./processor')
+const Help					= require('./help')
+const AggregatorRegistry	= require('./aggregated_metrics')
 
 module.exports = async () => {
 	const log = Logger.child({category: 'worker'})
@@ -51,7 +53,12 @@ module.exports = async () => {
 				process.exit(1)
 			})
 
-		await worker.start()
+		if ( Config.get('help') ) {
+			process.stdout.write(Help(worker))
+			process.exit()
+		} else {
+			await worker.start()
+		}
 	} catch (err) {
 		log.error(`${err.message}`)
 		process.exit(9)

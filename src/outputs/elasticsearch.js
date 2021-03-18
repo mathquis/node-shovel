@@ -7,12 +7,12 @@ const OutputNode	= require('../output')
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
 class ElasticsearchOutput extends OutputNode {
-	constructor(options) {
-		super(options)
+	constructor(name, options) {
+		super(name, options)
 
 		let ca
-		if ( this.getConfig('ssl.ca') ) {
-			const caPath = Path.resolve(process.cwd(), this.getConfig('ssl.ca'))
+		if ( this.getConfig('ca') ) {
+			const caPath = Path.resolve(process.cwd(), this.getConfig('ca'))
 			ca = File.readFileSync(caPath)
 		}
 
@@ -24,7 +24,7 @@ class ElasticsearchOutput extends OutputNode {
 			},
 			ssl: {
 				ca,
-				rejectUnauthorized: this.getConfig('ssl.reject_unauthorized')
+				rejectUnauthorized: this.getConfig('reject_unauthorized')
 			}
 		}
 
@@ -68,20 +68,18 @@ class ElasticsearchOutput extends OutputNode {
 				sensitive: true,
 				env: 'ELASTICSEARCH_PASSWORD'
 			},
-			ssl: {
-				ca: {
-					doc: '',
-					default: '',
-					arg: 'es-ca-cert',
-					env: 'ELASTICSEARCH_CA_CERT'
-				},
-				reject_unauthorized: {
-					doc: '',
-					default: true,
-					format: Boolean,
-					arg: 'es-reject-unauthorized',
-					env: 'ELASTICSEARCH_SSL_VERIFY'
-				}
+			ca: {
+				doc: '',
+				default: '',
+				arg: 'es-ca-cert',
+				env: 'ELASTICSEARCH_CA_CERT'
+			},
+			reject_unauthorized: {
+				doc: '',
+				default: true,
+				format: Boolean,
+				arg: 'es-reject-unauthorized',
+				env: 'ELASTICSEARCH_SSL_VERIFY'
 			},
 			queue_size: {
 				doc: '',
@@ -109,7 +107,7 @@ class ElasticsearchOutput extends OutputNode {
 			},
 			index_shard: {
 				doc: '',
-				default: '{YYYY}',
+				default: '',
 				arg: 'es-index-shard',
 				env: 'ELASTICSEARCH_INDEX_SHARD'
 			},

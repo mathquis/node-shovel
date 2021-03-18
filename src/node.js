@@ -3,14 +3,13 @@ const Convict = require('convict')
 const Logger = require('./logger')
 
 class Node extends Stream.PassThrough {
-	constructor(options) {
+	constructor(name, options) {
 		options || (options = {})
-
 		super({
-			...options.stream,
 			objectMode: true
 		})
 
+		this.name = name
 		this.config = Convict(this.configSchema || {})
 		this.config.load(options)
 		this.config.validate({allowed: 'strict'})
@@ -34,6 +33,10 @@ class Node extends Stream.PassThrough {
 	async stop() {
 		this.isStarted = false
 		this.log.info('Stopped')
+	}
+
+	help() {
+		return this.config.getSchema()
 	}
 
 	getConfig(key) {

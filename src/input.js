@@ -1,8 +1,8 @@
 const Node = require('./node')
 
 class InputNode extends Node {
-	constructor(parser, options) {
-		super(options)
+	constructor(name, parser, options) {
+		super(name, options)
 		this.parser = parser || ( content => content )
 	}
 

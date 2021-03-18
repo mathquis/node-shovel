@@ -3,7 +3,7 @@ const OS		= require('os')
 const Convict	= require('convict')
 const YAML		= require('js-yaml')
 const JSON5		= require('json5')
-
+const Prometheus= require('prom-client')
 
 Convict.addParser([
   { extension: 'json', parse: JSON.parse },
@@ -17,6 +17,11 @@ const config = Convict({
 		default: '',
 		arg: 'config',
 		env: 'SERVICE_CONFIG'
+	},
+	help: {
+		doc: '',
+		default: false,
+		arg: 'help'
 	},
 	pipeline: {
 		doc: '',
@@ -70,5 +75,19 @@ if ( !!configFile ) {
 	const configFilePath = Path.resolve(process.cwd(), configFile)
 	config.loadFile(configFilePath)
 }
+
+if ( config.get('help') ) {
+	config.set('workers', 1)
+}
+
+const defaultLabels = config.get('metrics.labels').reduce((labels, label) => {
+    const [key, value] = label.split('=')
+    labels[key] = value
+    return labels
+}, {})
+
+Prometheus.register.setDefaultLabels({
+    ...defaultLabels
+})
 
 module.exports = config

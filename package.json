@@ -16,6 +16,7 @@
     "@elastic/elasticsearch": "^7.11.0",
     "@koa/router": "^10.0.0",
     "amqplib": "^0.7.1",
+    "cli-table": "^0.3.6",
     "convict": "^6.0.1",
     "js-yaml": "^4.0.0",
     "json5": "^2.2.0",

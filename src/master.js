@@ -1,52 +1,74 @@
-const Cluster		= require('cluster')
-const Koa			= require('koa')
-const Router		= require('@koa/router')
-const Prometheus	= require('prom-client')
-const Config		= require('./config')
-const Logger		= require('./logger')
+const Cluster				= require('cluster')
+const Koa					= require('koa')
+const Router				= require('@koa/router')
+const Prometheus			= require('prom-client')
+const Config				= require('./config')
+const Logger				= require('./logger')
+const AggregatorRegistry	= require('./aggregated_metrics')
 
 module.exports = async () => {
 	const log = Logger.child({category: 'master'})
 
+	if ( Config.get('help') ) {
+		Cluster.fork()
+		Cluster.on('exit', () => {
+			process.exit()
+		})
+		return
+	}
+
 	log.debug('%O', Config.getProperties())
+
+	let numOnlineWorkers = 0
+	const workers = new Prometheus.Gauge({
+		name: 'workers',
+		help: 'Number of online workers',
+		labelNames: ['kind']
+	})
+
+	workers.set({kind: 'expected'}, Config.get('workers'))
 
 	log.info(`Starting ${Config.get('workers')} workers`)
 
 	let numWorkers = 0
 	for (let i = 0; i < Config.get('workers'); i++) {
 	    Cluster.fork()
-	    numWorkers++
 	}
 
 	Cluster.on('online', (worker) => {
 	    log.info(`Worker ${worker.process.pid} is online`)
+	    numOnlineWorkers++
+    	workers.inc({kind: 'online'})
 	})
 
 	Cluster.on('exit', (worker, code, signal) => {
-		numWorkers--
+		workers.dec({kind: 'online'})
+		numOnlineWorkers--
 	    log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
 	    if ( code === 1 ) {
 	    	log.info('Starting a new worker...')
 	    	Cluster.fork()
-	    	numWorkers++
 	    }
-	    if ( numWorkers === 0 ) {
+	    if ( workers.get() === 0 ) {
 	    	process.exit(code)
 	    }
 	})
 
 	if ( Config.get('metrics.enabled') ) {
-		const registry = new Prometheus.AggregatorRegistry()
+		const registry = new AggregatorRegistry()
 
 		const app = new Koa()
 		const router = new Router()
 
 		router.get(Config.get('metrics.route'), async (ctx, next) => {
 			try {
-				const metrics = await registry.clusterMetrics()
+				const metrics = await registry.clusterMetrics({
+					registries: [Prometheus.register]
+				})
 				ctx.type = registry.contentType
 				ctx.body = metrics
 			} catch (err) {
+				log.error(err.message)
 				ctx.throw(500)
 			}
 		})
