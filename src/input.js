@@ -10,7 +10,7 @@ class InputNode extends Node {
 
   async decode(data) {
     const content = await this.codec.decode(data)
-    return new Message(content)
+    return this.createMessage(content)
   }
 
   createMessage(content) {
