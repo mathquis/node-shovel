@@ -6,7 +6,7 @@
 
 ## Usage
 
-`shovel --pipeline pipeline.yml --config config.yml --workers 1 --log-level debug --metrics-port`
+`shovel --pipeline pipeline.yml --config config.yml --workers 1 --log-level debug --metrics-port 3001`
 
 ### Prometheus metrics
 
