@@ -60,9 +60,9 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 ```javascript
 module.exports = () => {
-	return async content => {
-		return content
-	}
+  return async content => {
+    return content
+  }
 }
 ```
 
@@ -70,19 +70,19 @@ module.exports = () => {
 
 ```javascript
 module.exports = () => {
-	return async (message, next) => {
-		message.setId(1)
-		message.setDate(new Date())
+  return async (message, next) => {
+    message.setId(1)
+    message.setDate(new Date())
 
-		// Ignore message
-		next()
+    // Ignore message
+    next()
 
-		// Reject message
-		next(new Error('rejected'))
+    // Reject message
+    next(new Error('rejected'))
 
-		// Process message
-		next(null, [message])
-	}
+    // Process message
+    next(null, [message])
+  }
 }
 ```
 
@@ -90,21 +90,21 @@ module.exports = () => {
 
 ```javascript
 module.exports = config => {
-	return {
-		"name": "template-name",
-		"template": {
-			"index_patterns": "template-*"],
-			"settings": {
-				"index": {
-					"number_of_shards": 1,
-					"refresh_interval": "10s"
-				}
-			},
-			"aliases": {
-				"template": {}
-			},
-			"mappings": {}
-		}
-	}
+  return {
+    "name": "template-name",
+    "template": {
+      "index_patterns": "template-*"],
+      "settings": {
+        "index": {
+          "number_of_shards": 1,
+          "refresh_interval": "10s"
+        }
+      },
+      "aliases": {
+        "template": {}
+      },
+      "mappings": {}
+    }
+  }
 }
 ```
