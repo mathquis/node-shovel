@@ -6,7 +6,11 @@
 
 ## Usage
 
-`shovel --pipeline pipeline.yml --config config.yml --workers 1 --log-level debug`
+`shovel --pipeline pipeline.yml --config config.yml --workers 1 --log-level debug --metrics-port`
+
+### Prometheus metrics
+
+Pipeline metrics are exposed as Prometheus format on the specified port
 
 ### Pipeline configuration
 
