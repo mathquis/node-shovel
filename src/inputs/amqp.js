@@ -1,6 +1,5 @@
 const AMQP      = require('amqplib')
 const InputNode = require('../input')
-const Message   = require('../message')
 
 const META_AMQP = 'amqp'
 let consumers = 0
@@ -110,13 +109,13 @@ class AmqpInput extends InputNode {
           this.reconnect()
         })
         .on('error', err => {
-          this.emit('error', err)
+          this.error(err)
           this.reconnect()
         })
 
       await this.onConnect()
     } catch (err) {
-      this.emit('error', err)
+      this.error(err)
       this.reconnect()
     }
   }
@@ -157,28 +156,23 @@ class AmqpInput extends InputNode {
         this.channel = null
       })
       .on('error', err => {
-        this.emit('error', err)
+        this.error(err)
         this.channel = null
         setTimeout(() => {
           this.onConnect()
         }, this.reconnectAfterMs)
       })
 
-    this.channel.consume(this.getConfig('queue_name'), async msg => {
+    this.channel.consume(this.getConfig('queue_name'), async data => {
+      let message
       try {
-        const content = await this.decode(msg)
-        if ( !content ) {
-          this.channel.nack(msg, false, false)
-          this.emit('reject', new Error(`Unable to parse message`), msg)
-          return
-        }
-        const message = new Message(content)
-        message.setMeta(META_AMQP, msg.fields)
+        message = await this.decode(data)
+        message.setMeta(META_AMQP, data.fields)
         this.push(message)
       } catch (err) {
-        this.emit('error', err)
-        const message = new Message(msg)
-        message.setMeta(META_AMQP, msg.fields)
+        message = this.createMessage(data.content)
+        message.setMeta(META_AMQP, data.fields)
+        this.error(err)
         this.nack(message)
       }
     }, {

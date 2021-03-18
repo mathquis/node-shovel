@@ -196,7 +196,7 @@ class Processor {
       .on('ack', message => {
         this.pipelineMessage.inc({pipeline: this.name, kind: 'acked'})
       })
-      .on('nack', (err, message) => {
+      .on('nack', message => {
         this.input.nack(message)
         this.pipelineMessage.inc({pipeline: this.name, kind: 'nacked'})
       })
@@ -244,7 +244,7 @@ class Processor {
         this.input.ack(message)
         this.outputMessage.inc({pipeline: this.name, kind: 'acked'})
       })
-      .on('nack', (err, message) => {
+      .on('nack', message => {
         this.input.nack(message)
         this.outputMessage.inc({pipeline: this.name, kind: 'nacked'})
       })

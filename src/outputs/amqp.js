@@ -2,8 +2,9 @@ const AMQP       = require('amqplib')
 const Compile    = require('string-template/compile')
 const OutputNode = require('../output')
 
-const AMQP_OUTPUT_OPTIONS = 'amqp_publish_options'
+const AMQP_OUTPUT_OPTIONS     = 'amqp_publish_options'
 const AMQP_OUTPUT_ROUTING_KEY = 'amqp_routing_key'
+
 let consumers = 0
 
 class AmqpOutput extends OutputNode {
@@ -195,6 +196,7 @@ class AmqpOutput extends OutputNode {
     try {
       if ( this.channel ) {
         const routingKey = this.formatRoutingKey(message)
+        this.log.debug('Publishing message with routing key "%s"', routingKey)
         const content = await this.encode(message)
         await this.channel.publish(this.getConfig('exchange_name'), routingKey, content, message.getMeta(AMQP_OUTPUT_OPTIONS) || {})
         this.ack(message)
