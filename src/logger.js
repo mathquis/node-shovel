@@ -1,37 +1,37 @@
-const Winston										= require('winston')
-const Config										= require('./config')
-const {format, transports}							= Winston
-const {colorize, splat, timestamp, printf, align}	= format
-const colorizer										= colorize()
-const isTTY											= process.stdout.isTTY
+const Winston                                     = require('winston')
+const Config                                      = require('./config')
+const {format, transports}                        = Winston
+const {colorize, splat, timestamp, printf, align} = format
+const colorizer                                   = colorize()
+const isTTY                                       = process.stdout.isTTY
 
 const logFmt = printf(info => {
-	let paddedLevel = info.level.padStart(5, ' ')
-	if ( isTTY ) {
-		paddedLevel = colorizer.colorize(info.level, paddedLevel)
-	}
-	return `${info.timestamp} [${paddedLevel}] [${(info.worker ? info.worker : process.pid ).toString().padStart(6, ' ')}] ${info.category}: ${info.message}`
+  let paddedLevel = info.level.padStart(5, ' ')
+  if ( isTTY ) {
+    paddedLevel = colorizer.colorize(info.level, paddedLevel)
+  }
+  return `${info.timestamp} [${paddedLevel}] [${(info.worker ? info.worker : process.pid ).toString().padStart(6, ' ')}] ${info.category}: ${info.message}`
 })
 
 const customFormat = format.combine(
-	splat(),
-	timestamp(),
-	logFmt,
+  splat(),
+  timestamp(),
+  logFmt,
 )
 
 const logger = Winston.createLogger({
-	level: Config.get('log.level', 'info'),
-	format: customFormat,
-	transports: [
-		new Winston.transports.Console()
-	]
+  level: Config.get('log.level', 'info'),
+  format: customFormat,
+  transports: [
+    new Winston.transports.Console()
+  ]
 })
 
 module.exports = {
-	child: (options) => logger.child(options),
-	setLevel: level => {
-		logger.transports.forEach(transport => {
-			transport.level = level
-		})
-	}
+  child: (options) => logger.child(options),
+  setLevel: level => {
+    logger.transports.forEach(transport => {
+      transport.level = level
+    })
+  }
 }

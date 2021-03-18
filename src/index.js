@@ -1,7 +1,7 @@
-const Cluster	= require('cluster')
+const Cluster = require('cluster')
 
 if (Cluster.isMaster) {
-	require('./master')()
+  require('./master')()
 } else {
-	require('./worker')()
+  require('./worker')()
 }
