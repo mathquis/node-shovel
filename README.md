@@ -19,7 +19,7 @@ name: message
 
 input:
   use: amqp
-  parser:
+  codec:
     use: parser.js
     options:
   options:
@@ -37,6 +37,7 @@ pipeline:
 
 output:
   use: elasticsearch
+  codec:
   options:
     scheme: http
     index_name: audit-events
@@ -57,12 +58,17 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - amqp
 - elasticsearch
 
-### Parser
+### Codec
 
 ```javascript
 module.exports = () => {
-  return async content => {
-    return content
+  return {
+    decode: async content => {
+      return content
+    },
+    encode: async message => {
+      return message.content
+    }
   }
 }
 ```
