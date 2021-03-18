@@ -16,8 +16,10 @@ class ElasticsearchOutput extends OutputNode {
 			ca = File.readFileSync(caPath)
 		}
 
+		const scheme = ca ? 'https' : this.getConfig('scheme')
+
 		const opts = {
-			node: `${this.getConfig('scheme')}://${this.getConfig('host')}:${this.getConfig('port')}`,
+			node: `${scheme}://${this.getConfig('host')}:${this.getConfig('port')}`,
 			auth: {
 				username: this.getConfig('username'),
 				password: this.getConfig('password')
