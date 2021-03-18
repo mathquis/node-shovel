@@ -1,84 +1,87 @@
-const Cluster				= require('cluster')
-const Koa					= require('koa')
-const Router				= require('@koa/router')
-const Prometheus			= require('prom-client')
-const Config				= require('./config')
-const Logger				= require('./logger')
-const AggregatorRegistry	= require('./aggregated_metrics')
+const Cluster            = require('cluster')
+const Koa                = require('koa')
+const Router             = require('@koa/router')
+const Prometheus         = require('prom-client')
+const Config             = require('./config')
+const Logger             = require('./logger')
+const AggregatorRegistry = require('./aggregated_metrics')
 
-module.exports = async () => {
-	const log = Logger.child({category: 'master'})
+module.exports = async (pipelineConfig) => {
+  const log = Logger.child({category: 'master'})
 
-	if ( Config.get('help') ) {
-		Cluster.fork()
-		Cluster.on('exit', () => {
-			process.exit()
-		})
-		return
-	}
+  if ( Config.get('help') ) {
+    Cluster.fork()
+    Cluster.on('exit', () => {
+      process.exit()
+    })
+    return
+  }
 
-	log.debug('%O', Config.getProperties())
+  log.debug('%O', Config.getProperties())
+  log.info('%O', pipelineConfig)
 
-	let numOnlineWorkers = 0
-	const workers = new Prometheus.Gauge({
-		name: 'workers',
-		help: 'Number of online workers',
-		labelNames: ['kind']
-	})
+  const {name: pipeline} = pipelineConfig
 
-	workers.set({kind: 'expected'}, Config.get('workers'))
+  let numOnlineWorkers = 0
+  const workers = new Prometheus.Gauge({
+    name: 'workers',
+    help: 'Number of online workers',
+    labelNames: ['pipeline', 'kind']
+  })
 
-	log.info(`Starting ${Config.get('workers')} workers`)
+  workers.set({pipeline, kind: 'expected'}, Config.get('workers'))
 
-	let numWorkers = 0
-	for (let i = 0; i < Config.get('workers'); i++) {
-	    Cluster.fork()
-	}
+  log.info(`Starting ${Config.get('workers')} workers`)
 
-	Cluster.on('online', (worker) => {
-	    log.info(`Worker ${worker.process.pid} is online`)
-	    numOnlineWorkers++
-    	workers.inc({kind: 'online'})
-	})
+  let numWorkers = 0
+  for (let i = 0; i < Config.get('workers'); i++) {
+      Cluster.fork()
+  }
 
-	Cluster.on('exit', (worker, code, signal) => {
-		workers.dec({kind: 'online'})
-		numOnlineWorkers--
-	    log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
-	    if ( code === 1 ) {
-	    	log.info('Starting a new worker...')
-	    	Cluster.fork()
-	    }
-	    if ( numOnlineWorkers === 0 ) {
-	    	process.exit(code)
-	    }
-	})
+  Cluster.on('online', (worker) => {
+      log.info(`Worker ${worker.process.pid} is online`)
+      numOnlineWorkers++
+      workers.inc({pipeline, kind: 'online'})
+  })
 
-	if ( Config.get('metrics.enabled') ) {
-		const registry = new AggregatorRegistry()
+  Cluster.on('exit', (worker, code, signal) => {
+    workers.dec({pipeline, kind: 'online'})
+    numOnlineWorkers--
+      log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
+      if ( code === 1 ) {
+        log.info('Starting a new worker...')
+        Cluster.fork()
+      }
+      if ( numOnlineWorkers === 0 ) {
+        process.exit(code)
+      }
+  })
 
-		const app = new Koa()
-		const router = new Router()
+  if ( Config.get('metrics.enabled') ) {
+    const registry = new AggregatorRegistry()
 
-		router.get(Config.get('metrics.route'), async (ctx, next) => {
-			try {
-				const metrics = await registry.clusterMetrics({
-					registries: [Prometheus.register]
-				})
-				ctx.type = registry.contentType
-				ctx.body = metrics
-			} catch (err) {
-				log.error(err.message)
-				ctx.throw(500)
-			}
-		})
+    const app = new Koa()
+    const router = new Router()
 
-		app
-			.use(router.routes())
-			.use(router.allowedMethods())
+    router.get(Config.get('metrics.route'), async (ctx, next) => {
+      try {
+        const metrics = await registry.clusterMetrics({
+          registries: [Prometheus.register]
+        })
+        ctx.type = registry.contentType
+        ctx.body = metrics
+      } catch (err) {
+        log.error(err.message)
+        ctx.throw(500)
+      }
+    })
 
-		app.listen( Config.get('metrics.port') )
+    app
+      .use(router.routes())
+      .use(router.allowedMethods())
 
-		log.info(`Prometheus metrics available on ${Config.get('metrics.route')} (port: ${Config.get('metrics.port')})`)
-	}
+    app.listen( Config.get('metrics.port') )
+
+    log.info(`Prometheus metrics available on ${Config.get('metrics.route')} (port: ${Config.get('metrics.port')})`)
+  }
 }

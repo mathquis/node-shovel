@@ -8,25 +8,12 @@ const Processor          = require('./processor')
 const Help               = require('./help')
 const AggregatorRegistry = require('./aggregated_metrics')
 
-module.exports = async () => {
-  const log = Logger.child({category: 'worker'})
-
-  Prometheus.collectDefaultMetrics()
-
-  // Load pipeline
-  if ( !Config.get('pipeline') ) {
-    log.error('Missing pipeline')
-    process.exit(9)
-  }
-  let pipelineConfig
+module.exports = async (pipelineConfig) => {
   try {
-    pipelineConfig = await YAML.load(File.readFileSync(Path.resolve(process.cwd(), Config.get('pipeline'))))
-  } catch (err) {
-    log.error(`Invalid pipeline "${Config.get('pipeline')}" (${err.message}`)
-    process.exit(9)
-  }
+    const log = Logger.child({category: 'worker'})
 
-  try {
+    Prometheus.collectDefaultMetrics()
+
     const {name, input, pipeline, output} = pipelineConfig
 
     const worker = new Processor(name, {
