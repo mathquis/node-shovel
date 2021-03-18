@@ -1,11 +1,18 @@
-const AMQP      = require('amqplib')
-const InputNode = require('../input')
-const Message   = require('../message')
+const AMQP       = require('amqplib')
+const Compile    = require('string-template/compile')
+const OutputNode = require('../output')
 
-const META_AMQP = 'amqp'
+const AMQP_OUTPUT_OPTIONS = 'amqp_publish_options'
+const AMQP_OUTPUT_ROUTING_KEY = 'amqp_routing_key'
 let consumers = 0
 
-class AmqpInput extends InputNode {
+class AmqpOutput extends OutputNode {
+  constructor(name, codec, options) {
+    super(name, codec, options)
+    this.routingKeyTemplates = new Map()
+    this.compileRoutingKeyTemplate(this.getConfig('routing_key'))
+  }
+
   get configSchema() {
     return {
       host: {
@@ -43,19 +50,9 @@ class AmqpInput extends InputNode {
         default: 'exchange',
         arg: 'amqp-exchange-name'
       },
-      queue_name: {
-        doc: '',
-        default: 'indexer',
-        arg: 'amqp-queue-name'
-      },
       routing_key: {
         doc: '',
         default: ''
-      },
-      queue_size: {
-        doc: '',
-        default: 1000,
-        arg: 'amqp-queue-size'
       },
       reconnect_after_ms: {
         doc: '',
@@ -66,15 +63,7 @@ class AmqpInput extends InputNode {
   }
 
   get consumerTag() {
-    return 'shovel-amqp-input-' + consumers
-  }
-
-  get queueSize() {
-    const queueSize = parseInt(this.getConfig('queue_size'))
-    if ( !queueSize || isNaN(queueSize) ) {
-      return 500
-    }
-    return queueSize
+    return 'shovel-amqp-output-' + consumers
   }
 
   get reconnectAfterMs() {
@@ -143,14 +132,6 @@ class AmqpInput extends InputNode {
 
     this.channel = await this.connection.createChannel()
 
-    await this.channel.prefetch(this.queueSize)
-
-    const queue = await this.channel.assertQueue(this.getConfig('queue_name'), {
-      durable: true
-    })
-
-    await this.channel.bindQueue(this.getConfig('queue_name'), this.getConfig('exchange_name'), this.getConfig('routing_key'))
-
     this.channel
       .on('close', () => {
         this.log.info('Channel closed')
@@ -164,27 +145,7 @@ class AmqpInput extends InputNode {
         }, this.reconnectAfterMs)
       })
 
-    this.channel.consume(this.getConfig('queue_name'), async msg => {
-      try {
-        const content = await this.decode(msg)
-        if ( !content ) {
-          this.channel.nack(msg, false, false)
-          this.emit('reject', new Error(`Unable to parse message`), msg)
-          return
-        }
-        const message = new Message(content)
-        message.setMeta(META_AMQP, msg.fields)
-        this.push(message)
-      } catch (err) {
-        this.emit('error', err)
-        const message = new Message(msg)
-        message.setMeta(META_AMQP, msg.fields)
-        this.nack(message)
-      }
-    }, {
-      consumerTag: this.consumerTag,
-      noAck: false
-    })
+    this.flush()
 
     this.emit('up')
   }
@@ -198,37 +159,64 @@ class AmqpInput extends InputNode {
   async stop() {
     this.log.debug('Stopping...')
     if ( this.channel ) {
-      await this.channel.cancel(this.consumerTag)
+      await this.channel.close()
     }
     await super.stop()
   }
 
-  ack(message) {
-    if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
-    if ( fields ) {
-      this.channel.ack({fields})
-      super.ack(message)
+  compileRoutingKeyTemplate(template) {
+    this.routingKeyTemplates.set(template, Compile(template))
+  }
+
+  formatRoutingKey(message) {
+    let routingKey = message.getMeta(AMQP_OUTPUT_ROUTING_KEY)
+    if ( !routingKey ) {
+      routingKey = this.getConfig('routing_key')
+    }
+    let routingKeyTemplate = this.routingKeyTemplates.get(routingKey)
+    if ( !routingKeyTemplate ) {
+      routingKeyTemplate = Compile(routingKey)
+      this.routingKeyTemplates.set(routingKey, routingKeyTemplate)
+    }
+    const {date} = message
+    return routingKeyTemplate({
+      ...message.content,
+      YYYY: date.getFullYear(),
+      YY: date.getYear(),
+      MM: date.getUTCMonth().toString().padStart(2, '0'),
+      M: date.getUTCMonth(),
+      DD: date.getUTCDate().toString().padStart(2, '0'),
+      D: date.getUTCDate()
+    })
+  }
+
+  async write(message) {
+    await super.write(message)
+    try {
+      if ( this.channel ) {
+        const routingKey = this.formatRoutingKey(message)
+        const content = await this.encode(message)
+        await this.channel.publish(this.getConfig('exchange_name'), routingKey, content, message.getMeta(AMQP_OUTPUT_OPTIONS) || {})
+        this.ack(message)
+        return
+      } else {
+        this.queue.push(message)
+      }
+    } catch (err) {
+      this.nack(message)
+      this.error(err)
     }
   }
 
-  nack(message) {
-    if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
-    if ( fields ) {
-      this.channel.nack({fields}, false, true)
-      super.nack(message)
-    }
-  }
-
-  reject(message) {
-    if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
-    if ( fields ) {
-      this.channel.nack({fields}, false, false)
-      super.reject(message)
-    }
+  async flush() {
+      // Get the queue messages
+      const messages = this.queue || []
+      this.queue = []
+      await messages.reduce(async (p, message) => {
+        await p
+        return this.write(message)
+      }, Promise.resolve())
   }
 }
 
-module.exports = AmqpInput
+module.exports = AmqpOutput

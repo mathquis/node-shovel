@@ -57,6 +57,9 @@ class Node extends Stream.PassThrough {
   help() {
     return this.config.getSchema()
   }
+  error(err) {
+    this.emit('error', err)
+  }
 
   getConfig(key) {
     return this.config.get(key)

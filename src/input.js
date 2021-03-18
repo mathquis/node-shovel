@@ -1,13 +1,14 @@
-const Node = require('./node')
+const Node		= require('./node')
+const NoopCodec	= require('./codec')
 
 class InputNode extends Node {
-  constructor(name, parser, options) {
+  constructor(name, codec, options) {
     super(name, options)
-    this.parser = parser || ( content => content )
+    this.codec = codec || NoopCodec
   }
 
-  async parse(content) {
-    return await this.parser(content)
+  async decode(content) {
+    return await this.codec.decode(content)
   }
 }
 

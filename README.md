@@ -54,6 +54,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 ### Available output
 
+- amqp
 - elasticsearch
 
 ### Parser

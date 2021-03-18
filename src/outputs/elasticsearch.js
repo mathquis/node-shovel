@@ -7,8 +7,8 @@ const OutputNode    = require('../output')
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
 class ElasticsearchOutput extends OutputNode {
-  constructor(name, options) {
-    super(name, options)
+  constructor(name, codec, options) {
+    super(name, codec, options)
 
     let ca
     if ( this.getConfig('ca') ) {
@@ -139,7 +139,7 @@ class ElasticsearchOutput extends OutputNode {
           tpl = tpl(this.config)
         }
       } catch (err) {
-        this.emit('error', new Error(`Template "${templatePath}" not found: ${err.message}`))
+        this.error(new Error(`Template "${templatePath}" not found: ${err.message}`))
         return
       }
 
@@ -161,7 +161,7 @@ class ElasticsearchOutput extends OutputNode {
         })
         this.log.info('Created template')
       } catch (err) {
-        this.emit('error', new Error(`Unable to create template: ${err.message}`))
+        this.error(new Error(`Unable to create template: ${err.message}`))
       }
     }
   }
@@ -217,8 +217,8 @@ class ElasticsearchOutput extends OutputNode {
   }
 
   async write(message) {
-    this.queue.push(message)
     await super.write(message)
+    this.queue.push(message)
     if ( this.queue.length >= this.getConfig('queue_size') ) {
       await this.flush()
     }
@@ -259,7 +259,7 @@ class ElasticsearchOutput extends OutputNode {
           filterPath: 'items.*.error,items.*._id'
         })
       } catch (err) {
-        this.emit('error', err)
+        this.error(err)
         // Notify messages processing
         setTimeout(() => {
           messages.forEach(message => {

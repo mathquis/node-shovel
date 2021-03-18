@@ -9,8 +9,9 @@ const Help               = require('./help')
 const AggregatorRegistry = require('./aggregated_metrics')
 
 module.exports = async (pipelineConfig) => {
+  const log = Logger.child({category: 'worker'})
+
   try {
-    const log = Logger.child({category: 'worker'})
 
     Prometheus.collectDefaultMetrics()
 

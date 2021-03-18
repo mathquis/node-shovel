@@ -94,21 +94,23 @@ class Processor {
   }
 
   setupInput(input) {
-    const {use = '', parser = {}, options = {}} = input || {}
+    const {use = '', codec = {}, options = {}} = input || {}
     let inputClass
     try {
       inputClass = require('./inputs/' + use)
     } catch (err) {
       throw new Error(`Unknown input type "${use} (${err.message})`)
     }
-    let parserFn
-    try {
-      parserFn = require(Path.resolve(process.cwd(), parser.use))(parser.options)
-    } catch (err) {
-      throw new Error(`Unknown parser "${parser.use} (${err.message})`)
+    let codecFn
+    if ( codec.use ) {
+      try {
+        codecFn = require(Path.resolve(process.cwd(), codec.use))(codec.options)
+      } catch (err) {
+        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
+      }
     }
     try {
-      this.input = new inputClass(use, parserFn, options)
+      this.input = new inputClass(use, codecFn, options)
     } catch (err) {
       throw new Error(`Input error: ${err.message}`)
     }
@@ -209,15 +211,23 @@ class Processor {
   }
 
   setupOutput(output) {
-    const {use = '', parser = {}, options = {}} = output || {}
+    const {use = '', codec = {}, options = {}} = output || {}
     let outputClass
     try {
       outputClass = require('./outputs/' + use)
     } catch (err) {
       throw new Error(`Unknown output type "${use} (${err.message})`)
     }
+    let codecFn
+    if ( codec.use ) {
+      try {
+        codecFn = require(Path.resolve(process.cwd(), codec.use))(codec.options)
+      } catch (err) {
+        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
+      }
+    }
     try {
-      this.output = new outputClass(use, options)
+      this.output = new outputClass(use, codecFn, options)
     } catch (err) {
       throw new Error(`Output error: ${err.message}`)
     }
