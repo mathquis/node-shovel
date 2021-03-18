@@ -40,11 +40,13 @@ output:
   options:
     scheme: http
     index_name: audit-events
-    index_shard: '{YYYY}'
+    index_shard: '{YYYY}' # YYYY, YY, MM, M, DD, D
     template: template.js
     username: elastic
     password: password
 ```
+
+Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 ### Available input
 
