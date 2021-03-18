@@ -49,7 +49,7 @@ module.exports = async () => {
 	    	log.info('Starting a new worker...')
 	    	Cluster.fork()
 	    }
-	    if ( workers.get() === 0 ) {
+	    if ( numOnlineWorkers === 0 ) {
 	    	process.exit(code)
 	    }
 	})
