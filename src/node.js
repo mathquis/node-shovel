@@ -1,7 +1,7 @@
-const Stream  = require('stream')
-const Convict = require('convict')
-const Pupa    = require('pupa')
-const Logger  = require('./logger')
+const EventEmitter = require('events')
+const Convict      = require('convict')
+const Pupa         = require('pupa')
+const Logger       = require('./logger')
 
 const traverse = (obj, cb) => {
   for (let k in obj) {
@@ -12,21 +12,20 @@ const traverse = (obj, cb) => {
   }
 }
 
-class Node extends Stream.PassThrough {
+class Node extends EventEmitter {
   constructor(name, options) {
     options || (options = {})
-    super({
-      objectMode: true
-    })
+    super()
 
     const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
       return $1 + '-' + $2.toLowerCase()
     }).toLowerCase()
 
-    this.log = Logger.child({category: type, worker: process.pid})
+    this.log = Logger.child({category: type.padEnd(24, ' '), worker: process.pid})
 
     this.name      = name
     this.isStarted = false
+    this.isUp      = false
     this.config    = Convict(this.configSchema || {})
 
     this.configure(options)
@@ -59,13 +58,21 @@ class Node extends Stream.PassThrough {
     return this.config.getSchema()
   }
 
+  getConfig(key) {
+    return this.config.get(key)
+  }
+
   up() {
+    if ( this.isUp ) return
     this.log.info('Up')
+    this.isUp = true
     this.emit('up')
   }
 
   down() {
-    this.log.info('Down')
+    if ( !this.isUp ) return
+    this.log.warn('Down')
+    this.isUp = false
     this.emit('down')
   }
 
@@ -73,22 +80,33 @@ class Node extends Stream.PassThrough {
     this.emit('error', err)
   }
 
-  getConfig(key) {
-    return this.config.get(key)
+  out(message) {
+    this.log.debug('-> %s', message)
+    this.emit('out', message)
+  }
+
+  async in(message) {
+    this.log.debug('<- %s', message)
+    this.emit('in', message)
   }
 
   ack(message) {
-    this.log.debug('Acked (id: %s)', message.id)
+    this.log.debug('Acked %s', message)
     this.emit('ack', message)
   }
 
   nack(message) {
-    this.log.warn('Nacked (id: %s)', message.id)
+    this.log.warn('Nacked %s', message)
     this.emit('nack', message)
   }
 
+  ignore(message) {
+    this.log.warn('Ignored %s', message)
+    this.emit('ignore', message)
+  }
+
   reject(message) {
-    this.log.warn('Rejected (id: %s)', message.id)
+    this.log.warn('Rejected %s', message)
     this.emit('reject', message)
   }
 

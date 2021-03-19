@@ -160,8 +160,8 @@ class AmqpOutput extends OutputNode {
     await super.stop()
   }
 
-  async write(message) {
-    await super.write(message)
+  async in(message) {
+    await super.in(message)
     try {
       if ( this.channel ) {
         const routingKeyTemplate = message.getMeta(META_AMQP_ROUTING_KEY) || this.getConfig('routing_key')
@@ -169,6 +169,7 @@ class AmqpOutput extends OutputNode {
         this.log.debug('Publishing message with routing key "%s"', routingKey)
         const content = await this.encode(message)
         await this.channel.publish(this.getConfig('exchange_name'), routingKey, content, message.getMeta(META_AMQP_PUBLISH_OPTIONS) || {})
+        this.out(message)
         this.ack(message)
         return
       } else {

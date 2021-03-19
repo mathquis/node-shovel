@@ -169,6 +169,7 @@ class AmqpInput extends InputNode {
       })
 
     this.channel.consume(this.getConfig('queue_name'), async data => {
+      this.log.debug('<- [AMQP]')
       let message
       try {
         message = await this.decode(data)
@@ -176,7 +177,7 @@ class AmqpInput extends InputNode {
           [META_AMQP_FIELDS, data.fields],
           [META_AMQP_PROPERTIES, data.properties]
         ])
-        this.push(message)
+        this.out(message)
       } catch (err) {
         message = this.createMessage(data.content)
         message.setMetas([
@@ -184,7 +185,7 @@ class AmqpInput extends InputNode {
           [META_AMQP_PROPERTIES, data.properties]
         ])
         this.error(err)
-        this.nack(message)
+        this.reject(message)
       }
     }, {
       consumerTag: this.consumerTag,

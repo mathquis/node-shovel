@@ -1,7 +1,7 @@
-const File          = require('fs')
-const Path          = require('path')
-const {Client}      = require('@elastic/elasticsearch')
-const OutputNode    = require('../output')
+const File             = require('fs')
+const Path             = require('path')
+const {Client, errors} = require('@elastic/elasticsearch')
+const OutputNode       = require('../output')
 
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
@@ -103,12 +103,6 @@ class ElasticsearchOutput extends OutputNode {
         format: Number,
         arg: 'es-queue-timeout'
       },
-      fail_timeout: {
-        doc: '',
-        default: 5000,
-        format: Number,
-        arg: 'es-fail-timeout'
-      },
       template: {
         doc: '',
         default: '',
@@ -163,23 +157,23 @@ class ElasticsearchOutput extends OutputNode {
   }
 
   async start() {
-    this.log.debug('Starting...')
     await this.setupTemplate()
-    this.log.debug('Connected')
     this.startFlushTimeout()
+    this.up()
     await super.start()
   }
 
   async stop() {
-    this.log.debug('Stopping...')
     this.stopFlushTimeout()
     await this.flush()
+    this.down()
     await super.stop()
   }
 
   startFlushTimeout() {
+    if ( this.flushTimeout ) return
     this.stopFlushTimeout()
-    setTimeout(() => {
+    this.flushTimeout = setTimeout(() => {
       this.flush()
     }, this.getConfig('queue_timeout'))
     this.log.debug('Next flush in %dms', this.getConfig('queue_timeout'))
@@ -191,33 +185,35 @@ class ElasticsearchOutput extends OutputNode {
     this.flushTimeout = null
   }
 
-  async write(message) {
-    await super.write(message)
+  async in(message) {
+    await super.in(message)
     this.queue.push(message)
     if ( this.queue.length >= this.getConfig('queue_size') ) {
       await this.flush()
     }
+    this.startFlushTimeout()
   }
 
   async flush() {
     this.stopFlushTimeout()
 
-    if ( this.queue.length > 0 ) {
+    // Get the queue messages
+    const messages = this.queue
+
+    // Empty the queue so new messages can start coming in
+    this.queue = []
+
+    const errorIds = new Map()
+
+    if ( messages.length > 0 ) {
 
       const st = (new Date()).getTime()
 
-      this.log.debug('Flushing %d messages...', this.queue.length)
-
-      // Get the queue messages
-      const messages = this.queue
-
-      // Empty the queue so new messages can start coming in
-      this.queue = []
+      this.log.debug('Flushing %d messages...', messages.length)
 
       // Index the messages
-      let response
       try {
-        response = await this.client.bulk({
+        const response = await this.client.bulk({
           _source: ['uuid'],
           body: messages.flatMap(message => {
             const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || this.indexShardName
@@ -234,45 +230,48 @@ class ElasticsearchOutput extends OutputNode {
         }, {
           filterPath: 'items.*.error,items.*._id'
         })
+
+        const et = (new Date()).getTime()
+
+        this.log.info('Flushed %d messages in %fms', messages.length, et-st)
+
+        await super.flush()
+
+        this.up()
+
+        // Get messages in error
+        if ( response.errors ) {
+          response.items.forEach(item => {
+            errorIds.set(item._id, true)
+          })
+        }
+
       } catch (err) {
         this.error(err)
-        // Notify messages processing
-        setTimeout(() => {
-          messages.forEach(message => {
-            this.nack(message)
-          })
-        }, this.getConfig('fail_timeout'))
-        return
-      }
 
-      const et = (new Date()).getTime()
+        if ( err instanceof errors.ConnectionError ) {
+          this.down()
+        } else if ( err instanceof errors.NoLivingConnectionsError ) {
+          this.down()
+        }
 
-      this.log.info('Flushed %d messages in %fms', messages.length, et-st)
-
-      await super.flush()
-
-      // Get messages in error
-      const errorIds = new Map()
-      if ( response.errors ) {
-        response.items.forEach(item => {
-          errorIds.set(item._id, true)
+        messages.forEach(message => {
+          errorIds.set(message.id, true)
         })
       }
-
-      // Notify messages processing
-      messages.forEach(message => {
-        if ( errorIds.get(message.id) ) {
-          this.nack(message)
-        } else {
-          this.ack(message)
-        }
-      })
-
     } else {
       this.log.debug('Nothing to flush')
     }
 
-    this.startFlushTimeout()
+    // Notify messages processing
+    messages.forEach(message => {
+      this.out(message)
+      if ( errorIds.get(message.id) ) {
+        this.nack(message)
+      } else {
+        this.ack(message)
+      }
+    })
   }
 }
 

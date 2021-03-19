@@ -2,7 +2,8 @@ let messageId = 0
 
 class Message {
   constructor(content) {
-    this.id     = ++messageId
+    this._uuid  = ++messageId
+    this.id     = null
     this.date   = new Date()
     this.content  = content
     this.metas    = {}
@@ -36,6 +37,10 @@ class Message {
 
   deleteMeta(key) {
     delete this.metas[key]
+  }
+
+  toString() {
+    return `[message uuid="${this._uuid}" id="${this.id || '<none>'}"]`
   }
 }
 

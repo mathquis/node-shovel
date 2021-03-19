@@ -1,8 +1,8 @@
-const Stream        = require('stream')
 const Path          = require('path')
 const Prometheus    = require('prom-client')
 const Convict       = require('convict')
 const Logger        = require('./logger')
+const Pipeline      = require('./pipeline')
 
 const registers = []
 
@@ -33,11 +33,6 @@ class Processor {
   }
 
   async start() {
-    // Chain everything
-    this.input
-      .pipe(this.pipeline)
-      .pipe(this.output)
-
     await this.output.start()
     await this.input.start()
   }
@@ -64,7 +59,7 @@ class Processor {
 
     this.inputStatus = new Prometheus.Gauge({
       name: 'input_status',
-      help: 'Status of the input connection',
+      help: 'Status of the input node',
       labelNames
     })
 
@@ -77,6 +72,12 @@ class Processor {
     this.pipelineMessage = new Prometheus.Counter({
       name: 'pipeline_message',
       help: 'Number of pipeline messages',
+      labelNames
+    })
+
+    this.outputStatus = new Prometheus.Gauge({
+      name: 'output_status',
+      help: 'Status of the output node',
       labelNames
     })
 
@@ -116,19 +117,23 @@ class Processor {
     }
 
     this.input
+      .on('error', err => {
+        this.log.error(`Input error: ${err.message}`)
+        this.inputMessage.inc({pipeline: this.name, kind: 'error'})
+      })
       .on('up', () => {
         this.inputStatus.set({pipeline: this.name, kind: 'up'}, 1)
       })
       .on('down', () => {
         this.inputStatus.set({pipeline: this.name, kind: 'up'}, 0)
       })
-      .on('error', err => {
-        this.log.error(`Input error: ${err.message}`)
-        this.inputMessage.inc({pipeline: this.name, kind: 'error'})
-      })
-      .on('data', () => {
+      .on('in', () => {
         this.processingMessage.inc()
         this.inputMessage.inc({pipeline: this.name, kind: 'received'})
+      })
+      .on('out', message => {
+        this.pipeline.in(message)
+        this.inputMessage.inc({pipeline: this.name, kind: 'emitted'})
       })
       .on('ack', message => {
         this.processingMessage.dec()
@@ -156,42 +161,18 @@ class Processor {
       throw new Error(`Unknown pipeline "${use} (${err.message})`)
     }
 
-    this.pipeline = new Stream.Transform({
-      readableObjectMode: true,
-      writableObjectMode: true,
-      transform: async (message, enc, done) => {
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'received'})
-        try {
-          await new Promise((resolve, reject) => {
-            pipelineFn(message, (err, messages) => {
-              if ( !messages ) {
-                if ( err ) {
-                  this.pipeline.emit('error', err)
-                  this.pipeline.emit('reject', message)
-                } else {
-                  this.pipeline.emit('ignore', message)
-                }
-              } else {
-                messages.forEach(message => {
-                  this.pipeline.push(message)
-                  this.pipeline.emit('ack', message)
-                })
-              }
-              resolve()
-            })
-          })
-        } catch (err) {
-          this.input.nack(message)
-          this.pipeline.emit('error', err)
-        }
-        done()
-      }
-    })
-
+    this.pipeline = new Pipeline(this.name, pipelineFn)
     this.pipeline
       .on('error', err => {
         this.pipelineMessage.inc({pipeline: this.name, kind: 'error'})
         this.log.error(`Pipeline error: ${err.message}`)
+      })
+      .on('in', message => {
+        this.pipelineMessage.inc({pipeline: this.name, kind: 'received'})
+      })
+      .on('out', message => {
+        this.output.in(message)
+        this.pipelineMessage.inc({pipeline: this.name, kind: 'emitted'})
       })
       .on('ack', message => {
         this.pipelineMessage.inc({pipeline: this.name, kind: 'acked'})
@@ -237,8 +218,17 @@ class Processor {
         this.outputMessage.inc({pipeline: this.name, kind: 'error'})
         this.log.error(`Output error: ${err.message}`)
       })
-      .on('incoming', message => {
+      .on('up', () => {
+        this.outputStatus.set({pipeline: this.name, kind: 'up'}, 1)
+      })
+      .on('down', () => {
+        this.outputStatus.set({pipeline: this.name, kind: 'up'}, 0)
+      })
+      .on('in', message => {
         this.outputMessage.inc({pipeline: this.name, kind: 'received'})
+      })
+      .on('out', message => {
+        this.outputMessage.inc({pipeline: this.name, kind: 'emitted'})
       })
       .on('ack', message => {
         this.input.ack(message)

@@ -1,5 +1,5 @@
-const Node		= require('./node')
-const NoopCodec	= require('./codec')
+const Node      = require('./node')
+const NoopCodec = require('./codec')
 
 class OutputNode extends Node {
   constructor(name, codec, options) {
@@ -9,10 +9,6 @@ class OutputNode extends Node {
 
   async encode(message) {
     return await this.codec.encode(message)
-  }
-
-  async write(message) {
-    this.emit('incoming', message)
   }
 
   async flush() {
