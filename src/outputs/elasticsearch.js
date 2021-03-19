@@ -6,9 +6,7 @@ const OutputNode       = require('../output')
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
 class ElasticsearchOutput extends OutputNode {
-  constructor(name, codec, options) {
-    super(name, codec, options)
-
+  async setup() {
     let ca
     if ( this.getConfig('ca') ) {
       const caPath = Path.resolve(process.cwd(), this.getConfig('ca'))
@@ -119,12 +117,11 @@ class ElasticsearchOutput extends OutputNode {
   async setupTemplate() {
     const templateFile = this.getConfig('template')
     if ( templateFile ) {
-      const templatePath = Path.resolve(process.cwd(), templateFile)
-      this.log.debug('Setting up template "%s"...', templatePath)
+      this.log.debug('Setting up template...')
 
       let tpl
       try {
-        tpl = require(templatePath)
+        tpl = this.pipelineConfig.loadFn(templateFile)
         if ( typeof tpl === 'function' ) {
           tpl = tpl(this.config)
         }

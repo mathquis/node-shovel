@@ -52,6 +52,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available input
 
 - amqp
+- http
 
 ### Available output
 

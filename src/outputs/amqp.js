@@ -142,7 +142,14 @@ class AmqpOutput extends OutputNode {
         }, this.reconnectAfterMs)
       })
 
-    this.flush()
+    // Get the queue messages
+    const messages = this.queue || []
+    this.queue = []
+    await messages.reduce(async (p, message) => {
+      await p
+      return this.write(message)
+    }, Promise.resolve())
+
     this.up()
   }
 
@@ -178,16 +185,6 @@ class AmqpOutput extends OutputNode {
       this.nack(message)
       this.error(err)
     }
-  }
-
-  async flush() {
-      // Get the queue messages
-      const messages = this.queue || []
-      this.queue = []
-      await messages.reduce(async (p, message) => {
-        await p
-        return this.write(message)
-      }, Promise.resolve())
   }
 }
 

@@ -23,7 +23,9 @@ const logger = Winston.createLogger({
   level: Config.get('log.level', 'info'),
   format: customFormat,
   transports: [
-    new Winston.transports.Console()
+    new Winston.transports.Console({
+      // stderrLevels: ['emerg', 'alert', 'crit', 'error', 'warning', 'notice', 'info', 'debug'] // All
+    })
   ]
 })
 

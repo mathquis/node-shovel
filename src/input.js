@@ -1,12 +1,19 @@
+const Path       = require('path')
 const Prometheus = require('prom-client')
 const Node       = require('./node')
 const NoopCodec  = require('./codec')
 const Message    = require('./message')
 
 class InputNode extends Node {
-  constructor(name, codec, options) {
-    super(name, options)
-    this.codec = codec || NoopCodec
+  constructor(pipelineConfig) {
+    const {codec = {}, options = {}} = pipelineConfig.input
+
+    super(pipelineConfig, options)
+
+    this.codec = NoopCodec
+    if ( codec.use ) {
+      this.codec = this.pipelineConfig.loadFn(codec.use)(codec.options)
+    }
 
     this.status = new Prometheus.Gauge({
       name: 'input_status',
@@ -27,22 +34,22 @@ class InputNode extends Node {
   }
 
   error(err) {
-    this.counter.inc({pipeline: this.name, kind: 'error'})
+    this.counter.inc({...this.defaultLabels, kind: 'error'})
     super.error(err)
   }
 
   up() {
-    this.status.set({pipeline: this.name, kind: 'up'}, 1)
+    this.status.set({...this.defaultLabels, kind: 'up'}, 1)
     super.up()
   }
 
   down() {
-    this.status.set({pipeline: this.name, kind: 'up'}, 0)
+    this.status.set({...this.defaultLabels, kind: 'up'}, 0)
     super.down()
   }
 
   async in(message) {
-    this.counter.inc({pipeline: this.name, kind: 'in'})
+    this.counter.inc({...this.defaultLabels, kind: 'in'})
   }
 
   out(message) {
@@ -55,26 +62,26 @@ class InputNode extends Node {
   }
 
   ack(message) {
-    this.counter.inc({pipeline: this.name, kind: 'out'})
-    this.counter.inc({pipeline: this.name, kind: 'acked'})
+    this.counter.inc({...this.defaultLabels, kind: 'out'})
+    this.counter.inc({...this.defaultLabels, kind: 'acked'})
     super.ack(message)
   }
 
   nack(message) {
-    this.counter.inc({pipeline: this.name, kind: 'out'})
-    this.counter.inc({pipeline: this.name, kind: 'nacked'})
+    this.counter.inc({...this.defaultLabels, kind: 'out'})
+    this.counter.inc({...this.defaultLabels, kind: 'nacked'})
     super.nack(message)
   }
 
   ignore(message) {
-    this.counter.inc({pipeline: this.name, kind: 'out'})
-    this.counter.inc({pipeline: this.name, kind: 'ignored'})
+    this.counter.inc({...this.defaultLabels, kind: 'out'})
+    this.counter.inc({...this.defaultLabels, kind: 'ignored'})
     super.ignore(message)
   }
 
   reject(message) {
-    this.counter.inc({pipeline: this.name, kind: 'out'})
-    this.counter.inc({pipeline: this.name, kind: 'rejected'})
+    this.counter.inc({...this.defaultLabels, kind: 'out'})
+    this.counter.inc({...this.defaultLabels, kind: 'rejected'})
     super.reject(message)
   }
 }

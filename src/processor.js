@@ -2,27 +2,37 @@ const Path          = require('path')
 const Prometheus    = require('prom-client')
 const Convict       = require('convict')
 const Logger        = require('./logger')
-const Pipeline      = require('./pipeline')
+const Pipeline      = require('./pipelines/pipeline')
 
 const registers = []
 
 class Processor {
-  constructor(name, options) {
-    this.config = Convict({
-      metrics: {
-        labels: {
-          doc: '',
-          default: [],
-          format: Array
-        }
-      }
-    })
-    this.config.load(options)
-    this.config.validate({allowed: 'strict'})
+  constructor(pipelineConfig) {
+    this.pipelineConfig = pipelineConfig
 
-    this.name = name
-    this.log = Logger.child({category: this.name})
-    this.setupMetrics(options)
+    this.log = Logger.child({category: this.pipelineConfig.name})
+
+    const labelNames = ['kind', 'pipeline']
+
+    this.globalMessage = new Prometheus.Counter({
+      name: 'message_processed',
+      help: 'Number of messages',
+      labelNames
+    })
+
+    this.processingMessage = new Prometheus.Gauge({
+      name: 'message_processing',
+      help: 'Number of messages currently in the processing pipeline',
+      labelNames
+    })
+
+    this.setupInput()
+    this.setupPipeline()
+    this.setupOutput()
+  }
+
+  get defaultLabels() {
+    return {pipeline: this.pipelineConfig.name}
   }
 
   help() {
@@ -42,90 +52,60 @@ class Processor {
     await this.output.stop()
   }
 
-  setupMetrics(options) {
-    const labelNames = ['kind', 'pipeline']
+  setupInput() {
+    const {use = '', options = {}} = this.pipelineConfig.input
 
-    this.globalMessage = new Prometheus.Counter({
-      name: 'message_processed',
-      help: 'Number of messages',
-      labelNames
-    })
-
-    this.processingMessage = new Prometheus.Gauge({
-      name: 'message_processing',
-      help: 'Number of messages currently in the processing pipeline',
-      labelNames
-    })
-  }
-
-  setupInput(input) {
-    const {use = '', codec = {}, options = {}} = input || {}
     let inputClass
     try {
       inputClass = require('./inputs/' + use)
     } catch (err) {
       throw new Error(`Unknown input type "${use} (${err.message})`)
     }
-    let codecFn
-    if ( codec.use ) {
-      try {
-        codecFn = require(Path.resolve(process.cwd(), codec.use))(codec.options)
-      } catch (err) {
-        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
-      }
-    }
+
     try {
-      this.input = new inputClass(this.name, codecFn, options)
+      this.input = new inputClass(this.pipelineConfig)
     } catch (err) {
       throw new Error(`Input error: ${err.message}`)
     }
 
     this.input
       .on('error', err => {
-        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
       })
       .on('in', () => {
-        this.processingMessage.inc({pipeline: this.name})
-        this.globalMessage.inc({pipeline: this.name, kind:'in'})
+        this.globalMessage.inc({...this.defaultLabels, kind:'in'})
       })
       .on('out', message => {
+        this.processingMessage.inc({pipeline: this.name})
         this.pipeline.in(message)
       })
       .on('ack', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
-        this.globalMessage.inc({pipeline: this.name, kind: 'acked'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'acked'})
       })
       .on('nack', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
-        this.globalMessage.inc({pipeline: this.name, kind: 'nacked'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'nacked'})
       })
       .on('ignore', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
-        this.globalMessage.inc({pipeline: this.name, kind: 'ignored'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'ignored'})
       })
       .on('reject', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
-        this.globalMessage.inc({pipeline: this.name, kind: 'rejected'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'rejected'})
       })
   }
 
-  setupPipeline(pipeline) {
-    const {use = '', options = {}} = pipeline || {}
-    let pipelineFn
-    try {
-      pipelineFn = require(Path.resolve(process.cwd(), use))(options)
-    } catch (err) {
-      throw new Error(`Unknown pipeline "${use} (${err.message})`)
-    }
-
-    this.pipeline = new Pipeline(this.name, pipelineFn)
+  setupPipeline() {
+    this.pipeline = new Pipeline(this.pipelineConfig)
     this.pipeline
       .on('error', err => {
-        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
       })
       .on('ack', message => {
         this.output.in(message)
@@ -141,31 +121,23 @@ class Processor {
       })
   }
 
-  setupOutput(output) {
-    const {use = '', codec = {}, options = {}} = output || {}
+  setupOutput() {
+    const {use = '', options = {}} = this.pipelineConfig.output
     let outputClass
     try {
       outputClass = require('./outputs/' + use)
     } catch (err) {
       throw new Error(`Unknown output type "${use} (${err.message})`)
     }
-    let codecFn
-    if ( codec.use ) {
-      try {
-        codecFn = require(Path.resolve(process.cwd(), codec.use))(codec.options)
-      } catch (err) {
-        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
-      }
-    }
     try {
-      this.output = new outputClass(this.name, codecFn, options)
+      this.output = new outputClass(this.pipelineConfig)
     } catch (err) {
       throw new Error(`Output error: ${err.message}`)
     }
 
     this.output
       .on('error', err => {
-        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
+        this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
       })
       .on('ack', message => {
         this.input.ack(message)

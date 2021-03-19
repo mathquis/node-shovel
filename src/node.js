@@ -13,7 +13,7 @@ const traverse = (obj, cb) => {
 }
 
 class Node extends EventEmitter {
-  constructor(name, options) {
+  constructor(pipelineConfig, options) {
     options || (options = {})
     super()
 
@@ -23,16 +23,29 @@ class Node extends EventEmitter {
 
     this.log = Logger.child({category: type, worker: process.pid})
 
-    this.name      = name
-    this.isStarted = false
-    this.isUp      = false
-    this.config    = Convict(this.configSchema || {})
+    this.pipelineConfig = pipelineConfig
+    this.isStarted      = false
+    this.isUp           = false
+    this.config         = Convict(this.configSchema || {})
 
     this.configure(options)
   }
 
+  get configSchema() {
+    return {}
+  }
+
+  get defaultLabels() {
+    return {pipeline: this.pipelineConfig.name}
+  }
+
+  getConfig(key) {
+    return this.config.get(key)
+  }
+
   async configure(options) {
     traverse(options, (key, value) => {
+      if ( typeof value === 'object' && value !== null ) return value
       return value
         .replace(/\$\{(.+?)(?::(.+?))?\}/, (match, env, defaultValue) => {
           return process.env[env] || defaultValue || ''
@@ -42,6 +55,12 @@ class Node extends EventEmitter {
     this.config.validate({allowed: 'strict'})
 
     this.log.debug('%O', this.config.getProperties())
+
+    await this.setup()
+  }
+
+  async setup() {
+    // TO OVERRIDE
   }
 
   async start() {
@@ -56,10 +75,6 @@ class Node extends EventEmitter {
 
   help() {
     return this.config.getSchema()
-  }
-
-  getConfig(key) {
-    return this.config.get(key)
   }
 
   up() {

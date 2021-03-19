@@ -1,10 +1,7 @@
-const Cluster    = require('cluster')
-const File       = require('fs')
-const Path       = require('path')
-const Prometheus = require('prom-client')
-const YAML       = require('js-yaml')
-const Config     = require('./config')
-const Logger     = require('./logger')
+const Cluster			= require('cluster')
+const Config			= require('./config')
+const Logger			= require('./logger')
+const PipelineConfig	= require('./pipelines/config')
 
 const log = Logger.child({category: 'shovel'})
 
@@ -14,12 +11,13 @@ if ( !Config.get('pipeline') ) {
   process.exit(9)
 }
 
-let pipelineConfig
+const pipelineConfig = new PipelineConfig(Config.get('pipeline'))
+
 try {
-  pipelineConfig = YAML.load(File.readFileSync(Path.resolve(process.cwd(), Config.get('pipeline'))))
+	pipelineConfig.load()
 } catch (err) {
-  log.error(`Invalid pipeline "${Config.get('pipeline')}" (${err.message}`)
-  process.exit(1)
+	log.error(err.message)
+	process.exit(9)
 }
 
 if (Cluster.isMaster) {

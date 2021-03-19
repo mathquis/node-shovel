@@ -17,15 +17,7 @@ module.exports = async (pipelineConfig) => {
 
     const {name, input, pipeline, output} = pipelineConfig
 
-    const worker = new Processor(name, {
-      metrics: {
-        labels: Config.get('metrics.labels')
-      }
-    })
-
-    worker.setupInput(input)
-    worker.setupPipeline(pipeline)
-    worker.setupOutput(output)
+    const worker = new Processor(pipelineConfig)
 
     process
       .on('SIGINT', async () => {
@@ -48,6 +40,7 @@ module.exports = async (pipelineConfig) => {
       await worker.start()
     }
   } catch (err) {
+    console.error(err)
     log.error(`${err.message}`)
     process.exit(9)
   }
