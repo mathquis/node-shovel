@@ -77,6 +77,7 @@ class Node extends EventEmitter {
   }
 
   error(err) {
+    this.log.error(err.message)
     this.emit('error', err)
   }
 
@@ -96,17 +97,17 @@ class Node extends EventEmitter {
   }
 
   nack(message) {
-    this.log.warn('Nacked %s', message)
+    this.log.debug('Nacked %s', message)
     this.emit('nack', message)
   }
 
   ignore(message) {
-    this.log.warn('Ignored %s', message)
+    this.log.debug('Ignored %s', message)
     this.emit('ignore', message)
   }
 
   reject(message) {
-    this.log.warn('Rejected %s', message)
+    this.log.debug('Rejected %s', message)
     this.emit('reject', message)
   }
 

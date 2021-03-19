@@ -169,7 +169,7 @@ class AmqpInput extends InputNode {
       })
 
     this.channel.consume(this.getConfig('queue_name'), async data => {
-      this.in()
+      this.in('[AMQP]')
       let message
       try {
         message = await this.decode(data)

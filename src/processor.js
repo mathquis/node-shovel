@@ -118,7 +118,6 @@ class Processor {
 
     this.input
       .on('error', err => {
-        this.log.error(`Input error: ${err.message}`)
         this.inputMessage.inc({pipeline: this.name, kind: 'error'})
       })
       .on('up', () => {
@@ -165,7 +164,6 @@ class Processor {
     this.pipeline
       .on('error', err => {
         this.pipelineMessage.inc({pipeline: this.name, kind: 'error'})
-        this.log.error(`Pipeline error: ${err.message}`)
       })
       .on('in', message => {
         this.pipelineMessage.inc({pipeline: this.name, kind: 'received'})
@@ -216,7 +214,6 @@ class Processor {
     this.output
       .on('error', err => {
         this.outputMessage.inc({pipeline: this.name, kind: 'error'})
-        this.log.error(`Output error: ${err.message}`)
       })
       .on('up', () => {
         this.outputStatus.set({pipeline: this.name, kind: 'up'}, 1)
