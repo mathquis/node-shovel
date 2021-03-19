@@ -231,6 +231,17 @@ class AmqpInput extends InputNode {
     }
   }
 
+  ignore(message) {
+    if ( !this.channel ) return
+    const fields = message.getMeta(META_AMQP_FIELDS)
+    if ( fields ) {
+      this.channel.ack({fields})
+      super.ignore(message)
+    } else {
+      this.error(new Error(`Unable to ignore message (id: ${message.id})`))
+    }
+  }
+
   reject(message) {
     if ( !this.channel ) return
     const fields = message.getMeta(META_AMQP_FIELDS)

@@ -81,33 +81,28 @@ class Node extends EventEmitter {
     this.emit('error', err)
   }
 
-  out(message) {
-    this.log.debug('-> %s', message)
-    this.emit('out', message)
-  }
-
   async in(message) {
-    this.log.debug('<- %s', message)
+    this.log.debug('<- IN %s', message)
     this.emit('in', message)
   }
 
   ack(message) {
-    this.log.debug('Acked %s', message)
+    this.log.debug('-> ACK %s', message)
     this.emit('ack', message)
   }
 
   nack(message) {
-    this.log.debug('Nacked %s', message)
+    this.log.debug('-> NACK %s', message)
     this.emit('nack', message)
   }
 
   ignore(message) {
-    this.log.debug('Ignored %s', message)
+    this.log.debug('-> IGNORE %s', message)
     this.emit('ignore', message)
   }
 
   reject(message) {
-    this.log.debug('Rejected %s', message)
+    this.log.debug('-> REJECT %s', message)
     this.emit('reject', message)
   }
 

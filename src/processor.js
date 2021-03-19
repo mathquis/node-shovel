@@ -56,42 +56,6 @@ class Processor {
       help: 'Number of messages currently in the processing pipeline',
       labelNames
     })
-
-    this.inputStatus = new Prometheus.Gauge({
-      name: 'input_status',
-      help: 'Status of the input node',
-      labelNames
-    })
-
-    this.inputMessage = new Prometheus.Counter({
-      name: 'input_message',
-      help: 'Number of input messages',
-      labelNames
-    })
-
-    this.pipelineMessage = new Prometheus.Counter({
-      name: 'pipeline_message',
-      help: 'Number of pipeline messages',
-      labelNames
-    })
-
-    this.outputStatus = new Prometheus.Gauge({
-      name: 'output_status',
-      help: 'Status of the output node',
-      labelNames
-    })
-
-    this.outputMessage = new Prometheus.Counter({
-      name: 'output_message',
-      help: 'Number of output messages',
-      labelNames
-    })
-
-    this.outputFlush = new Prometheus.Counter({
-      name: 'output_flush',
-      help: 'Number of output flushes',
-      labelNames
-    })
   }
 
   setupInput(input) {
@@ -111,43 +75,41 @@ class Processor {
       }
     }
     try {
-      this.input = new inputClass(use, codecFn, options)
+      this.input = new inputClass(this.name, codecFn, options)
     } catch (err) {
       throw new Error(`Input error: ${err.message}`)
     }
 
     this.input
       .on('error', err => {
-        this.inputMessage.inc({pipeline: this.name, kind: 'error'})
-      })
-      .on('up', () => {
-        this.inputStatus.set({pipeline: this.name, kind: 'up'}, 1)
-      })
-      .on('down', () => {
-        this.inputStatus.set({pipeline: this.name, kind: 'up'}, 0)
+        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
       })
       .on('in', () => {
         this.processingMessage.inc({pipeline: this.name})
-        this.inputMessage.inc({pipeline: this.name, kind: 'received'})
+        this.globalMessage.inc({pipeline: this.name, kind:'in'})
       })
       .on('out', message => {
         this.pipeline.in(message)
-        this.inputMessage.inc({pipeline: this.name, kind: 'emitted'})
       })
       .on('ack', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.inputMessage.inc({pipeline: this.name, kind: 'acked'})
-        this.globalMessage.inc({pipeline: this.name})
+        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'acked'})
       })
       .on('nack', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.inputMessage.inc({pipeline: this.name, kind: 'nacked'})
-        this.globalMessage.inc({pipeline: this.name})
+        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'nacked'})
+      })
+      .on('ignore', message => {
+        this.processingMessage.dec({pipeline: this.name})
+        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'ignored'})
       })
       .on('reject', message => {
         this.processingMessage.dec({pipeline: this.name})
-        this.inputMessage.inc({pipeline: this.name, kind: 'rejected'})
-        this.globalMessage.inc({pipeline: this.name})
+        this.globalMessage.inc({pipeline: this.name, kind: 'out'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'rejected'})
       })
   }
 
@@ -163,29 +125,19 @@ class Processor {
     this.pipeline = new Pipeline(this.name, pipelineFn)
     this.pipeline
       .on('error', err => {
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'error'})
-      })
-      .on('in', message => {
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'received'})
-      })
-      .on('out', message => {
-        this.output.in(message)
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'emitted'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
       })
       .on('ack', message => {
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'acked'})
+        this.output.in(message)
       })
       .on('nack', message => {
         this.input.nack(message)
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'nacked'})
       })
       .on('ignore', message => {
-        this.input.ack(message)
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'ignored'})
+        this.input.ignore(message)
       })
       .on('reject', message => {
         this.input.reject(message)
-        this.pipelineMessage.inc({pipeline: this.name, kind: 'rejected'})
       })
   }
 
@@ -206,41 +158,26 @@ class Processor {
       }
     }
     try {
-      this.output = new outputClass(use, codecFn, options)
+      this.output = new outputClass(this.name, codecFn, options)
     } catch (err) {
       throw new Error(`Output error: ${err.message}`)
     }
 
     this.output
       .on('error', err => {
-        this.outputMessage.inc({pipeline: this.name, kind: 'error'})
-      })
-      .on('up', () => {
-        this.outputStatus.set({pipeline: this.name, kind: 'up'}, 1)
-      })
-      .on('down', () => {
-        this.outputStatus.set({pipeline: this.name, kind: 'up'}, 0)
-      })
-      .on('in', message => {
-        this.outputMessage.inc({pipeline: this.name, kind: 'received'})
-      })
-      .on('out', message => {
-        this.outputMessage.inc({pipeline: this.name, kind: 'emitted'})
+        this.globalMessage.inc({pipeline: this.name, kind: 'error'})
       })
       .on('ack', message => {
         this.input.ack(message)
-        this.outputMessage.inc({pipeline: this.name, kind: 'acked'})
       })
       .on('nack', message => {
         this.input.nack(message)
-        this.outputMessage.inc({pipeline: this.name, kind: 'nacked'})
+      })
+      .on('ignore', message => {
+        this.input.ignore(message)
       })
       .on('reject', message => {
         this.input.reject(message)
-        this.outputMessage.inc({pipeline: this.name, kind: 'rejected'})
-      })
-      .on('flush', () => {
-        this.outputFlush.inc({pipeline: this.name})
       })
   }
 }

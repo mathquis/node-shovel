@@ -22,6 +22,8 @@ module.exports = async (pipelineConfig) => {
 
   const {name: pipeline} = pipelineConfig
 
+  log.info('Running pipeline: %s', pipeline)
+
   let numOnlineWorkers = 0
   const workers = new Prometheus.Gauge({
     name: 'workers',

@@ -235,8 +235,6 @@ class ElasticsearchOutput extends OutputNode {
 
         this.log.info('Flushed %d messages in %fms', messages.length, et-st)
 
-        await super.flush()
-
         this.up()
 
         // Get messages in error
@@ -265,7 +263,6 @@ class ElasticsearchOutput extends OutputNode {
 
     // Notify messages processing
     messages.forEach(message => {
-      this.out(message)
       if ( errorIds.get(message.id) ) {
         this.nack(message)
       } else {
