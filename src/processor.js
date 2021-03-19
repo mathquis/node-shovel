@@ -128,7 +128,7 @@ class Processor {
         this.inputStatus.set({pipeline: this.name, kind: 'up'}, 0)
       })
       .on('in', () => {
-        this.processingMessage.inc()
+        this.processingMessage.inc({pipeline: this.name})
         this.inputMessage.inc({pipeline: this.name, kind: 'received'})
       })
       .on('out', message => {
@@ -136,17 +136,17 @@ class Processor {
         this.inputMessage.inc({pipeline: this.name, kind: 'emitted'})
       })
       .on('ack', message => {
-        this.processingMessage.dec()
+        this.processingMessage.dec({pipeline: this.name})
         this.inputMessage.inc({pipeline: this.name, kind: 'acked'})
         this.globalMessage.inc({pipeline: this.name})
       })
       .on('nack', message => {
-        this.processingMessage.dec()
+        this.processingMessage.dec({pipeline: this.name})
         this.inputMessage.inc({pipeline: this.name, kind: 'nacked'})
         this.globalMessage.inc({pipeline: this.name})
       })
       .on('reject', message => {
-        this.processingMessage.dec()
+        this.processingMessage.dec({pipeline: this.name})
         this.inputMessage.inc({pipeline: this.name, kind: 'rejected'})
         this.globalMessage.inc({pipeline: this.name})
       })
