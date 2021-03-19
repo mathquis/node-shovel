@@ -1,6 +1,5 @@
 const File          = require('fs')
 const Path          = require('path')
-const Compile       = require('string-template/compile')
 const {Client}      = require('@elastic/elasticsearch')
 const OutputNode    = require('../output')
 
@@ -31,11 +30,8 @@ class ElasticsearchOutput extends OutputNode {
     }
 
     this.client         = new Client(opts)
-    this.indexTemplates = new Map()
     this.queue          = []
     this.flushTimeout   = null
-
-    this.compileIndexTemplate(this.indexShardName)
   }
 
   get configSchema() {
@@ -83,6 +79,18 @@ class ElasticsearchOutput extends OutputNode {
         arg: 'es-reject-unauthorized',
         env: 'ELASTICSEARCH_SSL_VERIFY'
       },
+      index_name: {
+        doc: '',
+        default: 'message',
+        arg: 'es-index-name',
+        env: 'ELASTICSEARCH_INDEX_NAME'
+      },
+      index_shard: {
+        doc: '',
+        default: '',
+        arg: 'es-index-shard',
+        env: 'ELASTICSEARCH_INDEX_SHARD'
+      },
       queue_size: {
         doc: '',
         default: 1000,
@@ -100,18 +108,6 @@ class ElasticsearchOutput extends OutputNode {
         default: 5000,
         format: Number,
         arg: 'es-fail-timeout'
-      },
-      index_name: {
-        doc: '',
-        default: 'message',
-        arg: 'es-index-name',
-        env: 'ELASTICSEARCH_INDEX_NAME'
-      },
-      index_shard: {
-        doc: '',
-        default: '',
-        arg: 'es-index-shard',
-        env: 'ELASTICSEARCH_INDEX_SHARD'
       },
       template: {
         doc: '',
@@ -181,27 +177,6 @@ class ElasticsearchOutput extends OutputNode {
     await super.stop()
   }
 
-  compileIndexTemplate(template) {
-    this.indexTemplates.set(template, Compile(template))
-  }
-
-  formatIndexName(message) {
-    const index = message.getMeta(META_INDEX_TEMPLATE) || this.indexShardName
-    const indexTemplate = this.indexTemplates.get(index)
-    if ( !indexTemplate ) {
-      throw new Error(`Unknown index "${index}"`)
-    }
-    const {date} = message
-    return indexTemplate({
-      YYYY: date.getFullYear(),
-      YY: date.getYear(),
-      MM: date.getUTCMonth().toString().padStart(2, '0'),
-      M: date.getUTCMonth(),
-      DD: date.getUTCDate().toString().padStart(2, '0'),
-      D: date.getUTCDate()
-    }).toLowerCase()
-  }
-
   startFlushTimeout() {
     this.stopFlushTimeout()
     setTimeout(() => {
@@ -245,10 +220,11 @@ class ElasticsearchOutput extends OutputNode {
         response = await this.client.bulk({
           _source: ['uuid'],
           body: messages.flatMap(message => {
+            const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || this.indexShardName
             return [
               {
                 index: {
-                  _index: this.formatIndexName(message),
+                  _index: this.renderTemplate(indexTemplate, message).toLowerCase(),
                   _id: message.id
                 }
               },

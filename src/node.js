@@ -1,5 +1,6 @@
 const Stream  = require('stream')
 const Convict = require('convict')
+const Pupa    = require('pupa')
 const Logger  = require('./logger')
 
 const traverse = (obj, cb) => {
@@ -18,19 +19,17 @@ class Node extends Stream.PassThrough {
       objectMode: true
     })
 
-    this.name = name
-    this.config = Convict(this.configSchema || {})
-    this.isStarted  = false
-
     const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
       return $1 + '-' + $2.toLowerCase()
     }).toLowerCase()
 
     this.log = Logger.child({category: type, worker: process.pid})
 
-    this.configure(options)
+    this.name      = name
+    this.isStarted = false
+    this.config    = Convict(this.configSchema || {})
 
-    this.log.debug('%O', this.config.getProperties())
+    this.configure(options)
   }
 
   async configure(options) {
@@ -42,6 +41,8 @@ class Node extends Stream.PassThrough {
     })
     this.config.load(options)
     this.config.validate({allowed: 'strict'})
+
+    this.log.debug('%O', this.config.getProperties())
   }
 
   async start() {
@@ -56,6 +57,16 @@ class Node extends Stream.PassThrough {
 
   help() {
     return this.config.getSchema()
+  }
+
+  up() {
+    this.log.info('Up')
+    this.emit('up')
+  }
+
+  down() {
+    this.log.info('Down')
+    this.emit('down')
   }
 
   error(err) {
@@ -79,6 +90,20 @@ class Node extends Stream.PassThrough {
   reject(message) {
     this.log.warn('Rejected (id: %s)', message.id)
     this.emit('reject', message)
+  }
+
+  renderTemplate(tpl, message) {
+    const {date} = message
+    const data = {
+      ...message,
+      YYYY: date.getFullYear().toString(),
+      YY: date.getYear().toString(),
+      MM: (date.getUTCMonth()+1).toString().padStart(2, '0'),
+      M: (date.getUTCMonth()+1).toString(),
+      DD: date.getUTCDate().toString().padStart(2, '0'),
+      D: date.getUTCDate().toString()
+    }
+    return Pupa(tpl, data)
   }
 }
 

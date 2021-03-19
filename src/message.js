@@ -28,6 +28,12 @@ class Message {
     this.metas[key] = value
   }
 
+  setMetas(metas) {
+    metas.forEach(([key, value]) => {
+      this.setMeta(key, value)
+    })
+  }
+
   deleteMeta(key) {
     delete this.metas[key]
   }

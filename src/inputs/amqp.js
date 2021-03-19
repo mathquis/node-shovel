@@ -1,7 +1,9 @@
 const AMQP      = require('amqplib')
 const InputNode = require('../input')
 
-const META_AMQP = 'amqp'
+const META_AMQP_FIELDS     = 'input_amqp_fields'
+const META_AMQP_PROPERTIES = 'input_amqp_properties'
+
 let consumers = 0
 
 class AmqpInput extends InputNode {
@@ -104,9 +106,12 @@ class AmqpInput extends InputNode {
       this.connection = await AMQP.connect(opts)
 
       this.connection
-        .on('close', () => {
-          this.log.warn('Connection closed')
-          this.reconnect()
+        .on('close', err => {
+          this.log.debug('Connection closed')
+          if ( err ) {
+            this.error(err)
+            this.reconnect()
+          }
         })
         .on('error', err => {
           this.error(err)
@@ -124,7 +129,7 @@ class AmqpInput extends InputNode {
     this.log.debug('Reconnecting in %d...', this.reconnectAfterMs)
     this.connection = null
     this.channel = null
-    this.emit('down')
+    this.down()
     this.clearReconnectTimeout()
     this.reconnectTimeout = setTimeout(() => {
       this.connect()
@@ -152,7 +157,7 @@ class AmqpInput extends InputNode {
 
     this.channel
       .on('close', () => {
-        this.log.info('Channel closed')
+        this.log.debug('Channel closed')
         this.channel = null
       })
       .on('error', err => {
@@ -167,11 +172,17 @@ class AmqpInput extends InputNode {
       let message
       try {
         message = await this.decode(data)
-        message.setMeta(META_AMQP, data.fields)
+        message.setMetas([
+          [META_AMQP_FIELDS, data.fields],
+          [META_AMQP_PROPERTIES, data.properties]
+        ])
         this.push(message)
       } catch (err) {
         message = this.createMessage(data.content)
-        message.setMeta(META_AMQP, data.fields)
+        message.setMetas([
+          [META_AMQP_FIELDS, data.fields],
+          [META_AMQP_PROPERTIES, data.properties]
+        ])
         this.error(err)
         this.nack(message)
       }
@@ -180,47 +191,53 @@ class AmqpInput extends InputNode {
       noAck: false
     })
 
-    this.emit('up')
+    this.up()
   }
 
   async start() {
-    this.log.debug('Starting...')
     await this.connect()
     await super.start()
   }
 
   async stop() {
-    this.log.debug('Stopping...')
     if ( this.channel ) {
       await this.channel.cancel(this.consumerTag)
+      await this.connection.close()
     }
+    this.down()
     await super.stop()
   }
 
   ack(message) {
     if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
+    const fields = message.getMeta(META_AMQP_FIELDS)
     if ( fields ) {
       this.channel.ack({fields})
       super.ack(message)
+    } else {
+      this.error(new Error(`Unable to ack message (id: ${message.id})`))
     }
   }
 
   nack(message) {
     if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
+    const fields = message.getMeta(META_AMQP_FIELDS)
     if ( fields ) {
       this.channel.nack({fields}, false, true)
       super.nack(message)
+    } else {
+      this.error(new Error(`Unable to nack message (id: ${message.id})`))
     }
   }
 
   reject(message) {
     if ( !this.channel ) return
-    const fields = message.getMeta(META_AMQP)
+    const fields = message.getMeta(META_AMQP_FIELDS)
     if ( fields ) {
       this.channel.nack({fields}, false, false)
       super.reject(message)
+    } else {
+      this.error(new Error(`Unable to reject message (id: ${message.id})`))
     }
   }
 }

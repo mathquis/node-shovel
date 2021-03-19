@@ -1,19 +1,12 @@
 const AMQP       = require('amqplib')
-const Compile    = require('string-template/compile')
 const OutputNode = require('../output')
 
-const AMQP_OUTPUT_OPTIONS     = 'amqp_publish_options'
-const AMQP_OUTPUT_ROUTING_KEY = 'amqp_routing_key'
+const META_AMQP_PUBLISH_OPTIONS = 'output_amqp_publish_options'
+const META_AMQP_ROUTING_KEY     = 'output_amqp_routing_key'
 
 let consumers = 0
 
 class AmqpOutput extends OutputNode {
-  constructor(name, codec, options) {
-    super(name, codec, options)
-    this.routingKeyTemplates = new Map()
-    this.compileRoutingKeyTemplate(this.getConfig('routing_key'))
-  }
-
   get configSchema() {
     return {
       host: {
@@ -95,18 +88,21 @@ class AmqpOutput extends OutputNode {
       this.connection = await AMQP.connect(opts)
 
       this.connection
-        .on('close', () => {
-          this.log.warn('Connection closed')
-          this.reconnect()
+        .on('close', err => {
+          this.log.debug('Connection closed')
+          if ( err ) {
+            this.error(err)
+            this.reconnect()
+          }
         })
         .on('error', err => {
-          this.emit('error', err)
+          this.error(err)
           this.reconnect()
         })
 
       await this.onConnect()
     } catch (err) {
-      this.emit('error', err)
+      this.error(err)
       this.reconnect()
     }
   }
@@ -115,7 +111,7 @@ class AmqpOutput extends OutputNode {
     this.log.debug('Reconnecting in %d...', this.reconnectAfterMs)
     this.connection = null
     this.channel = null
-    this.emit('down')
+    this.down()
     this.clearReconnectTimeout()
     this.reconnectTimeout = setTimeout(() => {
       this.connect()
@@ -135,11 +131,11 @@ class AmqpOutput extends OutputNode {
 
     this.channel
       .on('close', () => {
-        this.log.info('Channel closed')
+        this.log.debug('Channel closed')
         this.channel = null
       })
       .on('error', err => {
-        this.emit('error', err)
+        this.error(err)
         this.channel = null
         setTimeout(() => {
           this.onConnect()
@@ -147,8 +143,7 @@ class AmqpOutput extends OutputNode {
       })
 
     this.flush()
-
-    this.emit('up')
+    this.up()
   }
 
   async start() {
@@ -165,40 +160,15 @@ class AmqpOutput extends OutputNode {
     await super.stop()
   }
 
-  compileRoutingKeyTemplate(template) {
-    this.routingKeyTemplates.set(template, Compile(template))
-  }
-
-  formatRoutingKey(message) {
-    let routingKey = message.getMeta(AMQP_OUTPUT_ROUTING_KEY)
-    if ( !routingKey ) {
-      routingKey = this.getConfig('routing_key')
-    }
-    let routingKeyTemplate = this.routingKeyTemplates.get(routingKey)
-    if ( !routingKeyTemplate ) {
-      routingKeyTemplate = Compile(routingKey)
-      this.routingKeyTemplates.set(routingKey, routingKeyTemplate)
-    }
-    const {date} = message
-    return routingKeyTemplate({
-      ...message.content,
-      YYYY: date.getFullYear(),
-      YY: date.getYear(),
-      MM: date.getUTCMonth().toString().padStart(2, '0'),
-      M: date.getUTCMonth(),
-      DD: date.getUTCDate().toString().padStart(2, '0'),
-      D: date.getUTCDate()
-    })
-  }
-
   async write(message) {
     await super.write(message)
     try {
       if ( this.channel ) {
-        const routingKey = this.formatRoutingKey(message)
+        const routingKeyTemplate = message.getMeta(META_AMQP_ROUTING_KEY) || this.getConfig('routing_key')
+        const routingKey = this.renderTemplate(routingKeyTemplate, message)
         this.log.debug('Publishing message with routing key "%s"', routingKey)
         const content = await this.encode(message)
-        await this.channel.publish(this.getConfig('exchange_name'), routingKey, content, message.getMeta(AMQP_OUTPUT_OPTIONS) || {})
+        await this.channel.publish(this.getConfig('exchange_name'), routingKey, content, message.getMeta(META_AMQP_PUBLISH_OPTIONS) || {})
         this.ack(message)
         return
       } else {
