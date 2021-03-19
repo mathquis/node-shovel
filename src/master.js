@@ -6,57 +6,57 @@ const Config             = require('./config')
 const Logger             = require('./logger')
 const AggregatorRegistry = require('./aggregated_metrics')
 
-module.exports = async (pipelineConfig) => {
+module.exports = async (pipelineConfigs) => {
   const log = Logger.child({category: 'master'})
 
-  if ( Config.get('help') ) {
-    Cluster.fork()
-    Cluster.on('exit', () => {
-      process.exit()
+  function fork(pipelineConfig) {
+    const worker = Cluster.fork({
+      PIPELINE_PATH: pipelineConfig.file
     })
-    return
+    log.info('Started worker %d for pipeline: %s', worker.id, pipelineConfig.name)
+    workers.set(worker.id, pipelineConfig)
   }
 
   log.debug('%O', Config.getProperties())
-  log.info('%O', pipelineConfig)
+  log.debug('%O', pipelineConfigs)
 
-  const {name: pipeline} = pipelineConfig
-
-  log.info('Running pipeline: %s', pipeline)
-
-  let numOnlineWorkers = 0
-  const workers = new Prometheus.Gauge({
-    name: 'workers',
-    help: 'Number of online workers',
-    labelNames: ['pipeline', 'kind']
+  const workers = new Map()
+  pipelineConfigs.forEach(pipelineConfig => {
+    const numWorkers = pipelineConfig.workers
+    log.info('Starting %d workers for pipeline: %s', numWorkers, pipelineConfig.name)
+    for ( let i = 0 ; i < numWorkers ; i++ ) {
+      fork(pipelineConfig)
+    }
   })
 
-  workers.set({pipeline, kind: 'expected'}, Config.get('workers'))
+  let numOnlineWorkers = 0
+  const workerGauge = new Prometheus.Gauge({
+    name: 'workers',
+    help: 'Number of workers',
+    labelNames: ['kind']
+  })
 
-  log.info(`Starting ${Config.get('workers')} workers`)
-
-  let numWorkers = 0
-  for (let i = 0; i < Config.get('workers'); i++) {
-      Cluster.fork()
-  }
+  workers.set({kind: 'expected'}, workers.size)
 
   Cluster.on('online', (worker) => {
-      log.info(`Worker ${worker.process.pid} is online`)
-      numOnlineWorkers++
-      workers.inc({pipeline, kind: 'online'})
+    const pipelineConfig = workers.get(worker.id)
+    log.info('Worker %d is online for pipeline: %s', worker.id, pipelineConfig.name)
+    numOnlineWorkers++
+    workerGauge.inc({kind: 'online'})
   })
 
   Cluster.on('exit', (worker, code, signal) => {
-    workers.dec({pipeline, kind: 'online'})
+    workerGauge.dec({kind: 'online'})
     numOnlineWorkers--
-      log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
-      if ( code === 1 ) {
-        log.info('Starting a new worker...')
-        Cluster.fork()
-      }
-      if ( numOnlineWorkers === 0 ) {
-        process.exit(code)
-      }
+    log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
+    if ( code === 1 ) {
+      log.info('Starting a new worker...')
+      const pipelineConfig = workers.get(worker.id)
+      fork(pipelineConfig)
+    }
+    if ( numOnlineWorkers === 0 ) {
+      process.exit(code)
+    }
   })
 
   if ( Config.get('metrics.enabled') ) {

@@ -11,17 +11,30 @@ if ( !Config.get('pipeline') ) {
   process.exit(9)
 }
 
-const pipelineConfig = new PipelineConfig(Config.get('pipeline'))
-
-try {
-	pipelineConfig.load()
-} catch (err) {
-	log.error(err.message)
-	process.exit(9)
-}
-
 if (Cluster.isMaster) {
-  require('./master')(pipelineConfig)
+  const pipelineConfigs = Config.get('pipeline').map(pipeline => {
+    const pipelineConfig = new PipelineConfig(pipeline)
+    try {
+      pipelineConfig.load()
+    } catch (err) {
+      log.error(err.message)
+      process.exit(9)
+    }
+    return pipelineConfig
+  })
+  require('./master')(pipelineConfigs)
 } else {
+  const pipelinePath = process.env.PIPELINE_PATH
+  const pipelineConfig = new PipelineConfig(pipelinePath)
+  if ( !pipelineConfig ) {
+  	log.error(`Unknown pipeline "${pipelinePath}"`)
+  	process.exit(9)
+  }
+  try {
+    pipelineConfig.load()
+  } catch (err) {
+    log.error(err.message)
+    process.exit(9)
+  }
   require('./worker')(pipelineConfig)
 }
