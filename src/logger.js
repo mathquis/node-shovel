@@ -10,7 +10,7 @@ const logFmt = printf(info => {
   if ( isTTY ) {
     paddedLevel = colorizer.colorize(info.level, paddedLevel)
   }
-  return `${info.timestamp} [${paddedLevel}] [${(info.worker ? info.worker : process.pid ).toString().padStart(6, ' ')}] ${info.category}: ${info.message}`
+  return `${info.timestamp} [${paddedLevel}] [${(info.worker ? info.worker : process.pid ).toString().padStart(6, ' ')}] ${info.category.padEnd(24, ' ')}: ${info.message}`
 })
 
 const customFormat = format.combine(

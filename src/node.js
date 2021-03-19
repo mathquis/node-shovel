@@ -21,7 +21,7 @@ class Node extends EventEmitter {
       return $1 + '-' + $2.toLowerCase()
     }).toLowerCase()
 
-    this.log = Logger.child({category: type.padEnd(24, ' '), worker: process.pid})
+    this.log = Logger.child({category: type, worker: process.pid})
 
     this.name      = name
     this.isStarted = false
