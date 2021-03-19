@@ -9,23 +9,27 @@ class Pipeline extends Node {
   async in(message) {
     await super.in(message)
     try {
-      await new Promise((resolve, reject) => {
-        this.fn(message, (err, messages) => {
-          if ( !messages ) {
-            if ( err ) {
-              this.error(err)
-              this.reject(message)
+      await new Promise(async (resolve, reject) => {
+        try {
+          await this.fn(message, (err, messages) => {
+            if ( !messages ) {
+              if ( err ) {
+                this.error(err)
+                this.reject(message)
+              } else {
+                this.ignore(message)
+              }
             } else {
-              this.ignore(message)
+              messages.forEach(message => {
+                this.out(message)
+                this.ack(message)
+              })
             }
-          } else {
-            messages.forEach(message => {
-              this.out(message)
-              this.ack(message)
-            })
-          }
-          resolve()
-        })
+            resolve()
+          })
+        } catch (err) {
+          reject(err)
+        }
       })
     } catch (err) {
       this.error(err)

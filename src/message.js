@@ -3,17 +3,20 @@ let messageId = 0
 class Message {
   constructor(content) {
     this._uuid  = ++messageId
-    this.id     = null
+    this.id     = ''
     this.date   = new Date()
     this.content  = content
     this.metas    = {}
   }
 
   setId(id) {
-    this.id = id
+    this.id = ( id || '' ).toString()
   }
 
   setDate(date) {
+    if ( isNaN(date) ) {
+      throw new Error('Invalid date')
+    }
     this.date = date
   }
 
