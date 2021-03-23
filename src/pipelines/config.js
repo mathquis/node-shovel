@@ -3,15 +3,15 @@ const Path	= require('path')
 const YAML	= require('js-yaml')
 
 class PipelineConfig {
-	constructor(path) {
-		this._path = Path.resolve(process.cwd(), path)
+	constructor(pipelineFile) {
+		this.file = Path.resolve(process.cwd(), pipelineFile)
 	}
 
 	load() {
 		try {
-			this.config = YAML.load(File.readFileSync(this._path))
+			this.config = YAML.load(File.readFileSync(this.file))
 		} catch (err) {
-			throw new Error(`Invalid pipeline "${this._path}" (${err.message}`)
+			throw new Error(`Invalid pipeline "${this.file}" (${err.message}`)
 		}
 	}
 
@@ -25,15 +25,15 @@ class PipelineConfig {
 	}
 
 	get path() {
-		return Path.dirname(Path.resolve(this._path))
+		return Path.dirname(Path.resolve(this.file))
 	}
 
 	get name() {
 		return this.config.name || '<none>'
 	}
 
-	get options() {
-		return this.config.options || {}
+	get workers() {
+		return this.config.workers || 1
 	}
 
 	get input() {
@@ -46,6 +46,10 @@ class PipelineConfig {
 
 	get output() {
 		return this.config.output || {}
+	}
+
+	toJSON() {
+		return this.config
 	}
 }
 

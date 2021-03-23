@@ -1,4 +1,5 @@
 const EventEmitter = require('events')
+const Cluster      = require('cluster')
 const Convict      = require('convict')
 const Pupa         = require('pupa')
 const Logger       = require('./logger')
@@ -17,16 +18,16 @@ class Node extends EventEmitter {
     options || (options = {})
     super()
 
-    const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
-      return $1 + '-' + $2.toLowerCase()
-    }).toLowerCase()
-
-    this.log = Logger.child({category: type, worker: process.pid})
-
     this.pipelineConfig = pipelineConfig
     this.isStarted      = false
     this.isUp           = false
     this.config         = Convict(this.configSchema || {})
+
+    const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
+      return $1 + '-' + $2.toLowerCase()
+    }).toLowerCase()
+
+    this.log = Logger.child({category: type, worker: Cluster.worker.id, pipeline: this.pipelineConfig.name})
 
     this.configure(options)
   }

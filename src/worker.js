@@ -1,5 +1,6 @@
 const File               = require('fs')
 const Path               = require('path')
+const Cluster            = require('cluster')
 const Prometheus         = require('prom-client')
 const YAML               = require('js-yaml')
 const Config             = require('./config')
@@ -9,13 +10,15 @@ const Help               = require('./help')
 const AggregatorRegistry = require('./aggregated_metrics')
 
 module.exports = async (pipelineConfig) => {
-  const log = Logger.child({category: 'worker'})
+  const log = Logger.child({category: 'worker', pipeline: pipelineConfig.name, worker: Cluster.worker.id})
 
   try {
 
     Prometheus.collectDefaultMetrics()
 
     const {name, input, pipeline, output} = pipelineConfig
+
+    log.info('Running pipeline: %s', name)
 
     const worker = new Processor(pipelineConfig)
 
@@ -32,13 +35,6 @@ module.exports = async (pipelineConfig) => {
         await worker.stop()
         process.exit(1)
       })
-
-    if ( Config.get('help') ) {
-      process.stdout.write(Help(worker))
-      process.exit()
-    } else {
-      await worker.start()
-    }
   } catch (err) {
     console.error(err)
     log.error(`${err.message}`)

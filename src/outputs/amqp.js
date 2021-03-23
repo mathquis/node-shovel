@@ -68,6 +68,10 @@ class AmqpOutput extends OutputNode {
     return reconnectAfterMs
   }
 
+  async setup() {
+    this.queue = []
+  }
+
   async connect() {
     try {
       this.log.debug('Connecting...')

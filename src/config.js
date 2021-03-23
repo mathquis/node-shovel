@@ -18,14 +18,15 @@ const config = Convict({
     arg: 'config',
     env: 'SERVICE_CONFIG'
   },
-  help: {
-    doc: '',
-    default: false,
-    arg: 'help'
-  },
+  // help: {
+  //   doc: '',
+  //   default: false,
+  //   arg: 'help'
+  // },
   pipeline: {
     doc: '',
-    default: '',
+    format: Array,
+    default: [],
     arg: 'pipeline',
     env: 'SERVICE_PIPELINE'
   },
@@ -74,10 +75,6 @@ const configFile = config.get('config')
 if ( !!configFile ) {
   const configFilePath = Path.resolve(process.cwd(), configFile)
   config.loadFile(configFilePath)
-}
-
-if ( config.get('help') ) {
-  config.set('workers', 1)
 }
 
 const defaultLabels = config.get('metrics.labels').reduce((labels, label) => {
