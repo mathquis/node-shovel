@@ -23,18 +23,20 @@ module.exports = async (pipelineConfig) => {
     const worker = new Processor(pipelineConfig)
 
     process
-      .on('SIGINT', async () => {
+      .on('exit', async () => {
         await worker.stop()
+      })
+      .on('SIGINT', async () => {
         process.exit()
       })
       .on('SIGTERM', async () => {
-        await worker.stop()
         process.exit()
       })
       .on('uncaughtException', async err => {
-        await worker.stop()
         process.exit(1)
       })
+
+    await worker.start()
   } catch (err) {
     console.error(err)
     log.error(`${err.message}`)
