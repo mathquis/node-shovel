@@ -16,6 +16,7 @@ Pipeline metrics are exposed as Prometheus format on the specified port
 
 ```yaml
 name: message
+workers: 2
 
 input:
   use: amqp

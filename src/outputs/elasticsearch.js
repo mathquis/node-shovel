@@ -7,6 +7,8 @@ const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
 class ElasticsearchOutput extends OutputNode {
   async setup() {
+    this.templateCreated = false
+
     let ca
     if ( this.getConfig('ca') ) {
       const caPath = Path.resolve(process.cwd(), this.getConfig('ca'))
@@ -115,6 +117,8 @@ class ElasticsearchOutput extends OutputNode {
   }
 
   async setupTemplate() {
+    if ( this.templateCreated ) return
+
     const templateFile = this.getConfig('template')
     if ( templateFile ) {
       this.log.debug('Setting up template...')
@@ -126,8 +130,7 @@ class ElasticsearchOutput extends OutputNode {
           tpl = tpl(this.config)
         }
       } catch (err) {
-        this.error(new Error(`Template "${templatePath}" not found: ${err.message}`))
-        return
+        throw new Error(`Template "${templatePath}" not found: ${err.message}`)
       }
 
       try {
@@ -148,13 +151,19 @@ class ElasticsearchOutput extends OutputNode {
         })
         this.log.info('Created template')
       } catch (err) {
-        this.error(new Error(`Unable to create template: ${err.message}`))
+        throw new Error(`Unable to create template: ${err.message}`)
       }
     }
+
+    this.templateCreated = true
   }
 
   async start() {
-    await this.setupTemplate()
+    try {
+      await this.setupTemplate()
+    } catch (err) {
+      this.log.warn(err.message)
+    }
     this.startFlushTimeout()
     this.up()
     await super.start()
@@ -193,6 +202,14 @@ class ElasticsearchOutput extends OutputNode {
 
   async flush() {
     this.stopFlushTimeout()
+
+    try {
+      await this.setupTemplate()
+    } catch (err) {
+      this.log.warn(err.message)
+      this.startFlushTimeout()
+      return
+    }
 
     // Get the queue messages
     const messages = this.queue
