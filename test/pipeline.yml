@@ -1,0 +1,14 @@
+name: test
+workers: 1
+
+input:
+  use: stdin
+  options:
+
+pipeline:
+  use: ./pipeline.js
+  options:
+
+output:
+  use: stdout
+  options:
