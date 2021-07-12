@@ -8,7 +8,10 @@ class Pipeline extends Node {
 
     super(pipelineConfig, options)
 
-    this.fn = message => this.ack(message)
+    this.fn = (message, next) => {
+      next(null, [message])
+    }
+
     if ( use ) {
       this.fn = this.pipelineConfig.loadFn(use)(options)
     }

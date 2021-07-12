@@ -1,7 +1,7 @@
 const Readline = require('readline')
 const InputNode = require('../input')
 
-class StdinOutput extends InputNode {
+class StdinInput extends InputNode {
 
   get configSchema() {
     return {}
@@ -14,20 +14,21 @@ class StdinOutput extends InputNode {
     })
 
     this.reader.on('line', line => {
-        this.log.debug('Received line:', line)
+        this.log.debug('Received line: %s', line)
         const msg = this.createMessage(line)
+        msg.setId(msg.uuid)
         this.out(msg)
     })
+
     await super.start()
+    this.up()
   }
 
   async stop() {
-    // if ( this.reader ) {
-    //   await this.reader.close()
-    // }
+    process.stdin.unref()
     this.down()
     await super.stop()
   }
 }
 
-module.exports = StdinOutput
+module.exports = StdinInput

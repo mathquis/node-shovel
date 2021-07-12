@@ -9,6 +9,10 @@ class Message {
     this.metas    = {}
   }
 
+  get uuid() {
+    return this._uuid
+  }
+
   setId(id) {
     this.id = ( id || '' ).toString()
   }

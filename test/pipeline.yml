@@ -1,12 +1,13 @@
 name: test
 workers: 1
+log:
+  level: debug
 
 input:
   use: stdin
   options:
 
 pipeline:
-  use: ./pipeline.js
   options:
 
 output:

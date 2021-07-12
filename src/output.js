@@ -48,6 +48,7 @@ class OutputNode extends Node {
 
   async in(message) {
     this.counter.inc({...this.defaultLabels, kind: 'in'})
+    await super.in(message)
   }
 
   ack(message) {

@@ -13,8 +13,20 @@ class StdoutOutput extends OutputNode {
     }
   }
 
+  async start() {
+    await super.start();
+    this.up()
+  }
+
+  async stop() {
+    this.down()
+    await super.stop();
+  }
+
   async in(message) {
+    await super.in(message)
     process.stdout.write(JSON.stringify(message, null, this.getConfig('pretty') ? 2 : 0) + '\n')
+    this.ack(message)
   }
 }
 

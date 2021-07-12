@@ -95,12 +95,14 @@ class HttpInput extends Input {
       this.job.start()
     }
     await super.start()
+    this.up()
   }
 
   async stop() {
     if ( this.job ) {
       this.job.stop()
     }
+    this.down()
     await super.stop()
   }
 

@@ -168,6 +168,7 @@ class AmqpOutput extends OutputNode {
     if ( this.channel ) {
       await this.channel.close()
     }
+    this.down()
     await super.stop()
   }
 

@@ -165,8 +165,8 @@ class ElasticsearchOutput extends OutputNode {
       this.log.warn(err.message)
     }
     this.startFlushTimeout()
-    this.up()
     await super.start()
+    this.up()
   }
 
   async stop() {

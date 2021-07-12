@@ -54,11 +54,14 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 - amqp
 - http
+- udp (WIP)
+- stdin
 
 ### Available output
 
 - amqp
 - elasticsearch
+- stdout
 
 ### Codec
 

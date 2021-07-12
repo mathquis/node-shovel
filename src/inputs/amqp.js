@@ -196,8 +196,8 @@ class AmqpInput extends InputNode {
   }
 
   async start() {
-    await this.connect()
     await super.start()
+    await this.connect()
   }
 
   async stop() {
