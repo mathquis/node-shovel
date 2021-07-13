@@ -2,6 +2,7 @@ const Path       = require('path')
 const Prometheus = require('prom-client')
 const Node       = require('./node')
 const NoopCodec  = require('./codec')
+const Utils      = require('./utils')
 
 class OutputNode extends Node {
   constructor(pipelineConfig) {
@@ -11,7 +12,7 @@ class OutputNode extends Node {
 
     this.codec = NoopCodec
     if ( codec.use ) {
-      this.codec = this.pipelineConfig.loadFn(codec.use)(codec.options)
+      this.codec = Utils.loadFn(codec.use, [Path.resolve(__dirname, './codecs'), pipelineConfig.path])(codec.options)
     }
 
     this.status = new Prometheus.Gauge({

@@ -2,6 +2,7 @@ const Path          = require('path')
 const Prometheus    = require('prom-client')
 const Convict       = require('convict')
 const Logger        = require('./logger')
+const Utils         = require('./utils')
 const Pipeline      = require('./pipelines/pipeline')
 
 const registers = []
@@ -52,12 +53,12 @@ class Processor {
     await this.output.stop()
   }
 
-  setupInput() {
+  async setupInput() {
     const {use = '', options = {}} = this.pipelineConfig.input
 
     let inputClass
     try {
-      inputClass = require('./inputs/' + use)
+      inputClass = Utils.loadFn(use, [Path.resolve(__dirname, './inputs'), this.pipelineConfig.path])
     } catch (err) {
       throw new Error(`Unknown input type "${use} (${err.message})`)
     }
@@ -125,7 +126,7 @@ class Processor {
     const {use = '', options = {}} = this.pipelineConfig.output
     let outputClass
     try {
-      outputClass = require('./outputs/' + use)
+      outputClass = Utils.loadFn(use, [Path.resolve(__dirname, './outputs'), this.pipelineConfig.path])
     } catch (err) {
       throw new Error(`Unknown output type "${use} (${err.message})`)
     }

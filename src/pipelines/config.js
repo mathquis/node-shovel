@@ -2,6 +2,7 @@ const File		= require('fs')
 const Path		= require('path')
 const YAML		= require('js-yaml')
 const Logger	= require('../logger')
+const Utils 	= require('../utils')
 
 class PipelineConfig {
 	constructor(pipelineFile) {
@@ -21,33 +22,6 @@ class PipelineConfig {
 		} catch (err) {
 			throw new Error(`Invalid pipeline "${this.file}" (${err.message}`)
 		}
-	}
-
-	loadFn(fn) {
-		let modulePath
-		try {
-			modulePath = require.resolve(fn)
-		} catch (err) {
-			this.log.debug('Function "%s" is not a Node.js module', fn)
-		}
-    try {
-    	const searchPaths = [
-    		modulePath, // NPM Module
-    		Path.resolve(__dirname, '../codecs/' + fn), // Default codec
-    		Path.resolve(this.path, fn) // User provided codec
-    	]
-    	const foundPath = searchPaths.filter(fnPath => !!fnPath).find(fnPath => {
-    		this.log.debug('Checking function "%s" in path "%s"...', fn, fnPath)
-    		return File.existsSync(fnPath) || File.existsSync(fnPath + '.js')
-    	})
-    	if ( !foundPath ) {
-    		throw new Error(`No valid path available for function ${fn}`)
-    	}
-    	this.log.debug('Found function "%s" at path "%s"', fn, foundPath)
-      return require(foundPath)
-    } catch (err) {
-      throw new Error(`Error loading function "${fn}" (${err.message})`)
-    }
 	}
 
 	get path() {

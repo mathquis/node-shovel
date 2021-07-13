@@ -1,6 +1,7 @@
 const Path       = require('path')
 const Prometheus = require('prom-client')
 const Node       = require('../node')
+const Utils      = require('../utils')
 
 class Pipeline extends Node {
   constructor(pipelineConfig) {
@@ -13,7 +14,7 @@ class Pipeline extends Node {
     }
 
     if ( use ) {
-      this.fn = this.pipelineConfig.loadFn(use)(options)
+      this.fn = Utils.loadFn(use, [this.path])(options)
     }
 
     this.counter = new Prometheus.Counter({
