@@ -13,11 +13,10 @@ class StdinInput extends InputNode {
       terminal: false
     })
 
-    this.reader.on('line', line => {
+    this.reader.on('line', async line => {
         this.log.debug('Received line: %s', line)
-        const msg = this.createMessage(line)
-        msg.setId(msg.uuid)
-        this.out(msg)
+        const message = await this.decode(line)
+        this.out(message)
     })
 
     await super.start()

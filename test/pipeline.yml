@@ -1,10 +1,11 @@
 name: test
-workers: 1
-log:
-  level: debug
+workers: 2
 
 input:
   use: stdin
+  # codec:
+    # use: syslog
+    # options:
   options:
 
 pipeline:

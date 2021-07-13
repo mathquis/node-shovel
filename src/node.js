@@ -46,7 +46,10 @@ class Node extends EventEmitter {
 
   async configure(options) {
     traverse(options, (key, value) => {
+      console.log(key, typeof value, value)
       if ( typeof value === 'object' && value !== null ) return value
+      if ( typeof value === 'boolean' ) return value
+      if ( typeof value === 'number' ) return value
       return value
         .replace(/\$\{(.+?)(?::(.+?))?\}/, (match, env, defaultValue) => {
           return process.env[env] || defaultValue || ''

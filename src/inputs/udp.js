@@ -1,63 +1,67 @@
-const AMQP      = require('amqplib')
+const Dgram     = require('dgram')
 const InputNode = require('../input')
 
-let consumers = 0
+const META_UDP_PROPERTIES = 'input_udp_properties'
 
 class UdpInput extends InputNode {
   get configSchema() {
     return {
       interface: {
         doc: '',
-        default: '0.0.0.0',
+        default: '',
         arg: 'udp-interface',
         env: 'UDP_INTERFACE'
       },
       port: {
         doc: '',
         format: 'port',
-        default: 5544,
+        default: 514,
         arg: 'udp-port',
         env: 'UDP_PORT'
       }
     }
   }
 
-  async connect() {
+  async onMessage(data, rinfo) {
+    this.in('[UDP]')
+    let message
     try {
-      this.log.debug('Connecting...')
-      await this.onConnect()
+      message = await this.decode(data)
+      message.setMetas([
+        [META_UDP_PROPERTIES, rinfo]
+      ])
+      this.out(message)
     } catch (err) {
       this.error(err)
-      this.reconnect()
     }
   }
 
-  async reconnect() {
-    this.log.debug('Reconnecting in %d...', this.reconnectAfterMs)
-    this.down()
-    this.clearReconnectTimeout()
-    this.reconnectTimeout = setTimeout(() => {
-      this.connect()
-    }, this.reconnectAfterMs)
-  }
-
-  clearReconnectTimeout() {
-    if ( !this.reconnectTimeout ) return
-    clearTimeout(this.reconnectTimeout)
-    this.reconnectTimeout = null
-  }
-
-  async onConnect() {
-    this.log.debug('Connected')
-    this.up()
-  }
-
   async start() {
-    await this.connect()
+    this.server = Dgram.createSocket({type: 'udp4', reuseAddr: true})
+    this.server
+      .on('listening', () => {
+        this.up()
+      })
+      .on('error', err => {
+        this.error(err)
+      })
+      .on('message', (data, rinfo) => {
+        this.onMessage(data, rinfo)
+      })
+      .bind(
+        {
+          address: this.getConfig('interface'),
+          port: this.getConfig('port'),
+          exclusive: true
+        }
+      )
     await super.start()
   }
 
   async stop() {
+    if ( this.server ) {
+      this.server.close()
+    }
     this.down()
     await super.stop()
   }

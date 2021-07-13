@@ -50,20 +50,25 @@ output:
 
 Pipeline configuration can use environment variables like so `${NAME:default}`.
 
-### Available input
+### Available inputs
 
 - amqp
 - http
 - udp (WIP)
 - stdin
 
-### Available output
+### Available outputs
 
 - amqp
 - elasticsearch
 - stdout
 
-### Codec
+### Available codecs
+
+- json
+- syslog
+
+### Custom codec
 
 ```javascript
 module.exports = () => {
