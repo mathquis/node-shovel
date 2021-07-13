@@ -14,7 +14,8 @@ class StdinInput extends InputNode {
     })
 
     this.reader.on('line', async line => {
-        this.log.debug('Received line: %s', line)
+        this.log.debug('Received line: %s (length: %d)', line, line.length)
+        if ( line.length === 0 ) return
         this.in('[STDIN]')
         const message = await this.decode(line)
         this.out(message)
