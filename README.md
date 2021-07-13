@@ -54,7 +54,8 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 - amqp
 - http
-- udp (WIP)
+- tcp
+- udp
 - stdin
 
 ### Available outputs

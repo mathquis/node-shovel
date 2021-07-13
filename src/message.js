@@ -3,7 +3,7 @@ let messageId = 0
 class Message {
   constructor(content) {
     this._uuid  = ++messageId
-    this.id     = ''
+    this.id     = this._uuid
     this.date   = new Date()
     this.content  = content
     this.metas    = {}

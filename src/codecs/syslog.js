@@ -42,7 +42,8 @@ module.exports = () => {
 
 	return {
 		decode: async msg => {
-			const match = msg.toString('utf8').trim().match(syslogRegex)
+			const source = msg.toString('utf8').trim()
+			const match = source.match(syslogRegex)
 			if ( !match ) throw new Error(`Unable to parse syslog format: ${msg}`)
 			const [m, priority, version, timestamp, hostname, identity, pid, msgid, data, message] = match
 			const extractedData = data.matchAll(structuredDataRegex)
@@ -55,6 +56,7 @@ module.exports = () => {
 			const facility = Math.floor(priority / severities.length)
 			const severity = priority - facility * 8
 			return {
+				source,
 				priority: parseInt(priority),
 				facility,
 				facility_name: facilities[facility] || '',

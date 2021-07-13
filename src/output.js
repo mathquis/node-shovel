@@ -5,7 +5,7 @@ const NoopCodec  = require('./codec')
 
 class OutputNode extends Node {
   constructor(pipelineConfig) {
-    const {codec = {}, options = {}} = pipelineConfig.output
+    const {codec = {use: 'json'}, options = {}} = pipelineConfig.output
 
     super(pipelineConfig, options)
 
