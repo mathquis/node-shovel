@@ -30,6 +30,8 @@ class ElasticsearchOutput extends OutputNode {
       }
     }
 
+    this.log.info('Using index: %s', this.indexShardName)
+
     this.client         = new Client(opts)
     this.queue          = []
     this.flushTimeout   = null
