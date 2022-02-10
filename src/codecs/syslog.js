@@ -1,6 +1,12 @@
 module.exports = () => {
-	const syslogRegex = /^\<([0-9]+)\>([0-9]+) ([0-9-:.TZ]+) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+) (.+)$/
-	const structuredDataRegex = /([^ ]+)="([^"]+)"/g
+	const parsers = [
+    // RFC5424
+		/^<(?<pri>[0-9]+)>(?<version>[0-9]+) (?<timestamp>[0-9-:.TZ]+) (?<hostname>[^\s]+) (?<identity>[^\s]+) (?<pid>[^\s]+) (?<msgid>[^\s]+) (?<data>[^\s]+) (?<text>.+)$/gu,
+    // RFC3164
+		/^<(?<pri>[0-9]+)>(?<timestamp>[A-Za-z]+ [0-9]+ [0-9:]+) (?<hostname>[^\s]+) (?<text>.+)$/gu
+	]
+
+  const structuredDataRegex = /([^ ]+)="([^"]+)"/gu
 
 	const severities = [
 		'emergency',
@@ -41,23 +47,42 @@ module.exports = () => {
 	]
 
 	return {
-		decode: async msg => {
-			const source = msg.toString('utf8').trim()
-			const match = source.match(syslogRegex)
-			if ( !match ) throw new Error(`Unable to parse syslog format: ${msg}`)
-			const [m, priority, version, timestamp, hostname, identity, pid, msgid, data, message] = match
-			const extractedData = data.matchAll(structuredDataRegex)
+		decode: async log => {
+			const source = log.toString('utf8').trim()
+
+      let match
+      const len = parsers.length
+      for ( let i = 0 ; i < len ; i++ ) {
+        parsers[i].lastIndex = 0
+        match = parsers[i].exec(source)
+        if ( match !== null ) {
+          break
+        }
+      }
+			if ( !match ) throw new Error(`Unable to parse syslog format: ${log}`)
+
+      const {pri, version, timestamp, hostname, identity, pid, msgid, data, text} = match.groups
+
+      let priority = parseInt(pri)
+      if ( isNaN(priority) ) {
+         priority = 0
+      }
+
+      const extractedData = ( data || '' ).matchAll(structuredDataRegex)
 			let structuredData = {}
 			if ( extractedData ) {
 				for ( i in extractedData ) {
 					structuredData[extractedData[i][1]] = extractedData[i][2]
 				}
 			}
-			const facility = Math.floor(priority / severities.length)
-			const severity = priority - facility * 8
-			return {
+
+      const facility = Math.floor(priority / severities.length)
+
+      const severity = priority - facility * 8
+
+      return {
 				source,
-				priority: parseInt(priority),
+				priority,
 				facility,
 				facility_name: facilities[facility] || '',
 				severity,
@@ -69,7 +94,7 @@ module.exports = () => {
 				pid,
 				msgid,
 				data: structuredData,
-				message
+				message: text
 			}
 		}
 	}

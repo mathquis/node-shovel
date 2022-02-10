@@ -14,7 +14,7 @@ class Pipeline extends Node {
     }
 
     if ( use ) {
-      this.fn = Utils.loadFn(use, [this.path])(options)
+      this.fn = Utils.loadFn(use, [pipelineConfig.path])(this, options)
     }
 
     this.counter = new Prometheus.Counter({
