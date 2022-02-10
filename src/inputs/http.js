@@ -5,6 +5,7 @@ const HTTPS     = require('https')
 const Fetch     = require('node-fetch')
 const {CronJob} = require('cron')
 const Input     = require('../input')
+const Utils     = require('../utils')
 
 const META_HTTP_STATUS = 'input_http_status'
 const META_HTTP_HEADERS = 'input_http_headers'
@@ -86,7 +87,7 @@ class HttpInput extends Input {
     this.prepareFn = req => req
     const {use, options} = this.getConfig('prepare')
     if ( use ) {
-      this.prepareFn = this.pipelineConfig.loadFn(use)(options)
+      this.prepareFn = Utils.loadFn(use, [this.pipelineConfig.path])(options)
     }
   }
 

@@ -2,6 +2,7 @@ const File             = require('fs')
 const Path             = require('path')
 const {Client, errors} = require('@elastic/elasticsearch')
 const OutputNode       = require('../output')
+const Utils            = require('../utils')
 
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
@@ -125,12 +126,12 @@ class ElasticsearchOutput extends OutputNode {
 
       let tpl
       try {
-        tpl = this.pipelineConfig.loadFn(templateFile)
+        tpl = Utils.loadFn(templateFile, [this.pipelineConfig.path])
         if ( typeof tpl === 'function' ) {
           tpl = tpl(this.config)
         }
       } catch (err) {
-        throw new Error(`Template "${templatePath}" not found: ${err.message}`)
+        throw new Error(`Template "${templateFile}" not found: ${err.message}`)
       }
 
       try {
