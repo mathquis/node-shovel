@@ -50,7 +50,7 @@ class Node extends EventEmitter {
       if ( typeof value === 'boolean' ) return value
       if ( typeof value === 'number' ) return value
       return value
-        .replace(/\$\{(.+?)(?::(.+?))?\}/, (match, env, defaultValue) => {
+        .replace(/\$\{(.+?)(?::(.+?))?\}/g, (match, env, defaultValue) => {
           return process.env[env] || defaultValue || ''
         })
     })
