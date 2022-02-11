@@ -53,6 +53,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available inputs
 
 - amqp
+- mqtt
 - http
 - tcp
 - udp
@@ -61,8 +62,11 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available outputs
 
 - amqp
+- mqtt
 - elasticsearch
 - stdout
+- tcp
+- udp
 
 ### Available codecs
 
