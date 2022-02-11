@@ -33,6 +33,7 @@ module.exports = async (pipelineConfig) => {
         process.exit()
       })
       .on('uncaughtException', async err => {
+        log.error(err)
         process.exit(1)
       })
 

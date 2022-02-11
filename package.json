@@ -13,18 +13,19 @@
   "author": "Mathieu \"Fastjack\" Quisefit",
   "license": "ISC",
   "dependencies": {
-    "@elastic/elasticsearch": "^7.13.0",
-    "@koa/router": "^10.0.0",
-    "amqplib": "^0.7.1",
-    "cli-table": "^0.3.6",
-    "convict": "^6.1.0",
+    "@elastic/elasticsearch": "^7.17.0",
+    "@koa/router": "^10.1.1",
+    "amqplib": "^0.8.0",
+    "cli-table": "^0.3.11",
+    "convict": "^6.2.1",
     "cron": "^1.8.2",
     "js-yaml": "^4.1.0",
     "json5": "^2.2.0",
-    "koa": "^2.13.1",
-    "node-fetch": "^2.6.1",
-    "prom-client": "^13.1.0",
+    "koa": "^2.13.4",
+    "mqtt": "^4.3.5",
+    "node-fetch": "^2.6.7",
+    "prom-client": "^14.0.1",
     "pupa": "^2.1.1",
-    "winston": "^3.3.3"
+    "winston": "^3.5.1"
   }
 }

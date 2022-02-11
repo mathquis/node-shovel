@@ -1,17 +1,26 @@
-name: udp
+name: mqtt
 workers: 1
 
 input:
-  use: udp
+  use: mqtt
   codec:
-    use: syslog
+    use: json
     options:
   options:
+    url: mqtts://assistant.quisefit.com:8883
+    ca: D:/Projects/Assistant/certificates/ca.crt
+    cert: D:/Projects/Assistant/certificates/client.crt
+    key: D:/Projects/Assistant/certificates/client.key
+    topics:
+      - assistant/#
+      - hermes/dialogueManager/#
 
 pipeline:
   options:
 
 output:
-  use: tcp
+  use: mqtt
+  codec:
+    use: json
   options:
-    port: 5515
+    url: mqtt://localhost:1883

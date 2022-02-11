@@ -13,8 +13,8 @@ function loadFn(fn, paths = []) {
   }
   try {
     const searchPaths = [
-      modulePath, // NPM Module
-      ...paths.map(p => Path.resolve(p) + Path.sep + fn)
+      ...paths.map(p => Path.resolve(p) + Path.sep + fn),
+      modulePath // NPM Module
     ]
     const foundPath = searchPaths.filter(fnPath => !!fnPath).find(fnPath => {
       log.debug('Checking function "%s" in path "%s"...', fn, fnPath)

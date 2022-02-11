@@ -60,6 +60,7 @@ class Processor {
     try {
       inputClass = Utils.loadFn(use, [Path.resolve(__dirname, './inputs'), this.pipelineConfig.path])
     } catch (err) {
+      this.log.error(err.stack)
       throw new Error(`Unknown input type "${use} (${err.message})`)
     }
 
