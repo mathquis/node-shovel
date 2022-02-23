@@ -1,4 +1,63 @@
-const Codec = require('./noop')
+const configSchema = {}
+
+const codec = (codec, options) => {
+	return {
+		decode: async (content) => {
+			const source = msg.toString('utf8').trim()
+
+		    let match
+		    const len = parsers.length
+		    for ( let i = 0 ; i < len ; i++ ) {
+		      parsers[i].lastIndex = 0
+		      match = parsers[i].exec(source)
+		      if ( match !== null ) {
+		        break
+		      }
+		    }
+			if ( !match ) throw new Error(`Unable to parse syslog format: ${msg}`)
+
+		    const {pri, version, timestamp, hostname, identity, pid, msgid, data, text} = match.groups
+
+		    let priority = parseInt(pri)
+		    if ( isNaN(priority) ) {
+		       priority = 0
+		    }
+
+		    const extractedData = ( data || '' ).matchAll(structuredDataRegex)
+				let structuredData = {}
+				if ( extractedData ) {
+					for ( i in extractedData ) {
+						structuredData[extractedData[i][1]] = extractedData[i][2]
+					}
+				}
+
+		    const facility = Math.floor(priority / severities.length)
+
+		    const severity = priority - facility * 8
+
+		    return {
+				source,
+				priority,
+				facility,
+				facility_name: facilities[facility] || '',
+				severity,
+				severity_name: severities[severity] || '',
+				version,
+				timestamp,
+				hostname,
+				identity,
+				pid,
+				msgid,
+				data: structuredData,
+				message: text
+			}
+		},
+
+		encode: async (message) => {
+			// TODO
+		}
+	}
+}
 
 const parsers = [
 	// RFC5424
@@ -47,57 +106,4 @@ const facilities = [
 	'local use 7  (local7)'
 ]
 
-class SyslogCodec extends Codec {
-	async decode(msg) {
-		const source = msg.toString('utf8').trim()
-
-    let match
-    const len = parsers.length
-    for ( let i = 0 ; i < len ; i++ ) {
-      parsers[i].lastIndex = 0
-      match = parsers[i].exec(source)
-      if ( match !== null ) {
-        break
-      }
-    }
-		if ( !match ) throw new Error(`Unable to parse syslog format: ${msg}`)
-
-    const {pri, version, timestamp, hostname, identity, pid, msgid, data, text} = match.groups
-
-    let priority = parseInt(pri)
-    if ( isNaN(priority) ) {
-       priority = 0
-    }
-
-    const extractedData = ( data || '' ).matchAll(structuredDataRegex)
-		let structuredData = {}
-		if ( extractedData ) {
-			for ( i in extractedData ) {
-				structuredData[extractedData[i][1]] = extractedData[i][2]
-			}
-		}
-
-    const facility = Math.floor(priority / severities.length)
-
-    const severity = priority - facility * 8
-
-    return {
-			source,
-			priority,
-			facility,
-			facility_name: facilities[facility] || '',
-			severity,
-			severity_name: severities[severity] || '',
-			version,
-			timestamp,
-			hostname,
-			identity,
-			pid,
-			msgid,
-			data: structuredData,
-			message: text
-		}
-	}
-}
-
-module.exports = SyslogCodec
+module.exports = {codec, configSchema}

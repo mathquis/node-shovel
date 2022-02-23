@@ -1,9 +1,9 @@
-const Path       = require('path')
-const Prometheus = require('prom-client')
-const Node       = require('./node')
-const NoopCodec  = require('./codecs/noop')
-const Message    = require('./message')
-const Utils      = require('./utils')
+const Path          = require('path')
+const Prometheus    = require('prom-client')
+const Node          = require('./node')
+const CodecOperator = require('./codec_operator')
+const Message       = require('./message')
+const Utils         = require('./utils')
 
 class InputNode extends Node {
   constructor(pipelineConfig) {
@@ -11,16 +11,7 @@ class InputNode extends Node {
 
     super(pipelineConfig, options)
 
-    let codecClass = NoopCodec
-    if ( codec.use ) {
-      try {
-        codecClass = Utils.loadFn(codec.use, [Path.resolve(__dirname, './codecs'), pipelineConfig.path])
-      } catch (err) {
-        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
-      }
-      this.log.info('Using codec: %s', codec.use)
-    }
-    this.codec = new codecClass(pipelineConfig, codec.options)
+    this.codec = new CodecOperator(codec.use, pipelineConfig, codec.options)
 
     this.status = new Prometheus.Gauge({
       name: 'input_status',

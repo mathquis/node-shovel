@@ -1,8 +1,11 @@
-name: stdin
+name: udp
 workers: 1
 
 input:
-  use: stdin
+  use: udp
+  codec:
+    use: syslog
+    options:
   options:
 
 pipeline:
@@ -10,8 +13,4 @@ pipeline:
 
 output:
   use: stdout
-  codec:
-    use: json
-    options:
-      pretty: true
   options:

@@ -76,7 +76,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Custom codec
 
 ```javascript
-module.exports = () => {
+module.exports = (codec) => {
   return {
     decode: async content => {
       return content

@@ -1,23 +1,21 @@
-const Codec = require('./noop')
-
-class JsonCodec extends Codec {
-	get configSchema() {
-		return {
-			'pretty': {
-			doc: '',
-			default: true,
-			format: Boolean,
-			arg: 'stdout-pretty'
-			}
-		}
-	}
-
-	async encode(message) {
-		return JSON.stringify(message, null, this.getConfig('pretty') ? 2 : 0)
-	}
-	async decode(msg) {
-		return JSON.parse(msg.toString('utf8'))
+const configSchema = {
+	'pretty': {
+		doc: '',
+		default: true,
+		format: Boolean
 	}
 }
 
-module.exports = JsonCodec
+const codec = (codec, options) => {
+	return {
+		decode: async (content) => {
+			return JSON.parse(content.toString('utf8'))
+		},
+
+		encode: async (message) => {
+			return JSON.stringify(message, null, options.pretty ? 2 : 0)
+		}
+	}
+}
+
+module.exports = {codec, configSchema}
