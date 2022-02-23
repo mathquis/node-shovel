@@ -2,7 +2,7 @@ name: stdin
 workers: 1
 
 input:
-  use: stdin
+  use: file
   options:
 
 pipeline:

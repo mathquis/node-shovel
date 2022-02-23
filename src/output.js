@@ -10,11 +10,16 @@ class OutputNode extends Node {
 
     super(pipelineConfig, options)
 
-    this.codec = NoopCodec
+    let codecClass = NoopCodec
     if ( codec.use ) {
-      this.codec = Utils.loadFn(codec.use, [Path.resolve(__dirname, './codecs'), pipelineConfig.path])(codec.options)
+      try {
+        codecClass = Utils.loadFn(codec.use, [Path.resolve(__dirname, './codecs'), pipelineConfig.path])
+      } catch (err) {
+        throw new Error(`Unknown codec "${codec.use} (${err.message})`)
+      }
       this.log.info('Using codec: %s', codec.use)
     }
+    this.codec = new codecClass(pipelineConfig, codec.options)
 
     this.status = new Prometheus.Gauge({
       name: 'output_status',

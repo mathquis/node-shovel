@@ -67,6 +67,7 @@ class Processor {
     try {
       this.input = new inputClass(this.pipelineConfig)
     } catch (err) {
+      console.error(err)
       throw new Error(`Input error: ${err.message}`)
     }
 
@@ -129,12 +130,12 @@ class Processor {
     try {
       outputClass = Utils.loadFn(use, [Path.resolve(__dirname, './outputs'), this.pipelineConfig.path])
     } catch (err) {
-      throw new Error(`Unknown output type "${use} (${err.message})`)
+      throw new Error(`Unknown output type "${use} (${err.stack})`)
     }
     try {
       this.output = new outputClass(this.pipelineConfig)
     } catch (err) {
-      throw new Error(`Output error: ${err.message}`)
+      throw new Error(`Output error: ${err.stack}`)
     }
 
     this.output

@@ -1,0 +1,23 @@
+name: stdin
+workers: 1
+
+input:
+  use: file
+  codec:
+    use: csv
+    options:
+      delimiter: ;
+  options:
+    file: ./username.csv
+    start_position: beginning
+
+pipeline:
+  options:
+
+output:
+  use: stdout
+  codec:
+    use: json
+    options:
+      pretty: true
+  options:
