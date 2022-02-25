@@ -20,6 +20,7 @@ workers: 2
 
 input:
   use: amqp
+  split: true
   codec:
     use: parser.js
     options:
@@ -53,36 +54,38 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available inputs
 
 - amqp
-- mqtt
+- file
 - http
+- mqtt
+- stdin
 - tcp
 - udp
-- stdin
 
 ### Available outputs
 
 - amqp
-- mqtt
 - elasticsearch
+- mqtt
 - stdout
 - tcp
 - udp
 
 ### Available codecs
 
+- csv
 - json
 - syslog
 
 ### Custom codec
 
 ```javascript
-module.exports = (codec) => {
+module.exports = codec => {
   return {
-    decode: async content => {
-      return content
+    decode: async data => {
+      return data
     },
     encode: async message => {
-      return message.content
+      return [message.content]
     }
   }
 }
@@ -91,20 +94,63 @@ module.exports = (codec) => {
 ### Pipeline
 
 ```javascript
-module.exports = () => {
-  return async (message, next) => {
-    message.setId(1)
-    message.setDate(new Date())
+module.exports = node => {
+  node
+    .registerConfig({
+      enabled: {
+        doc: '',
+        format: Boolean,
+        default: true
+      },
+      blocked: {
+        doc: '',
+        format: Boolean,
+        default: true
+      }
+    })
+    .on('in', async (message) => {
+      message.setId(1)
+      message.setDate(new Date())
 
-    // Ignore message
-    next()
+      const {blocked} = node.getConfig()
 
-    // Reject message
-    next(new Error('rejected'))
+      if (blocked) {
+        // Reject message
+        node.reject(message)
+      } else if (!node.getConfig('enabled')) {
+        // Ignore message
+        node.ignore(message)
+      } else {
+        // Process message
+        node.out(message)
+      }
+    })
+}
+```
 
-    // Process message
-    next(null, [message])
-  }
+### Custom node
+
+```javascript
+module.exports = node => {
+  node
+    // Use convict schema
+    .registerConfig({})
+
+    .on('start', async () => {})
+    .on('stop', async () => {})
+
+    .on('up', async () => {})
+    .on('down', async () => {})
+
+    .on('in', async (message) => {})
+    .on('out', async (message) => {})
+
+    .on('ack', async (message) => {})
+    .on('unack', async (message) => {})
+    .on('ignore', async (message) => {})
+    .on('reject', async (message) => {})
+
+    .on('error', async (err) => {})
 }
 ```
 

@@ -1,77 +1,58 @@
-const Path          = require('path')
-const Prometheus    = require('prom-client')
-const Node          = require('./node')
-const CodecOperator = require('./codec_operator')
-const Utils         = require('./utils')
+const Path        = require('path')
+const Prometheus  = require('prom-client')
+const Node        = require('./node')
+const Codec       = require('./ocodec')
 
-class OutputNode extends Node {
-  constructor(pipelineConfig) {
-    const {codec = {use: 'json'}, options = {}} = pipelineConfig.output
+class Output extends Node {
+   get configSchema() {
+      return {
+         ...super.configSchema,
+         codec: this.codec.configSchema
+      }
+   }
 
-    super(pipelineConfig, options)
+   get options() {
+      return this.pipelineConfig.output || {}
+   }
 
-    this.codec = new CodecOperator(codec.use, pipelineConfig, codec.options)
+   get includePaths() {
+      return [
+         ...super.includePaths,
+         Path.resolve(__dirname, './outputs')
+      ]
+   }
 
-    this.status = new Prometheus.Gauge({
-      name: 'output_status',
-      help: 'Status of the output node',
-      labelNames: ['pipeline', 'kind']
-    })
+   setup() {
+      this.codec = new Codec(this.pipelineConfig)
+   }
 
-    this.counter = new Prometheus.Counter({
-      name: 'output_message',
-      help: 'Number of output messages',
-      labelNames: ['pipeline', 'kind']
-    })
-  }
+   setupMonitoring() {
+      this.status = new Prometheus.Gauge({
+         name: 'output_status',
+         help: 'Status of the output node',
+         labelNames: ['pipeline', 'kind']
+      })
 
-  async encode(message) {
-    return await this.codec.encode(message)
-  }
+      this.counter = new Prometheus.Counter({
+         name: 'output_message',
+         help: 'Number of output messages',
+         labelNames: ['pipeline', 'kind']
+      })
+   }
 
-  error(err) {
-    this.counter.inc({...this.defaultLabels, kind: 'error'})
-    super.error(err)
-  }
+   async encode(message) {
+      try {
+         return await this.codec.encode(message)
+      } catch (err) {
+         this.error(err)
+         this.unack(message)
+         return null
+      }
+   }
 
-  up() {
-    this.status.set({...this.defaultLabels, kind: 'up'}, 1)
-    super.up()
-  }
-
-  down() {
-    this.status.set({...this.defaultLabels, kind: 'up'}, 0)
-    super.down()
-  }
-
-  async in(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'in'})
-    await super.in(message)
-  }
-
-  ack(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'acked'})
-    super.ack(message)
-  }
-
-  nack(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'nacked'})
-    super.nack(message)
-  }
-
-  ignore(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'ignored'})
-    super.ignore(message)
-  }
-
-  reject(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'rejected'})
-    super.reject(message)
-  }
+   out(message) {
+      throw new Error('Output node does not allow outbound message')
+   }
 }
 
-module.exports = OutputNode
+module.exports = Output

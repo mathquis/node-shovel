@@ -1,9 +1,7 @@
-const configSchema = {}
-
-const codec = (codec, options) => {
+module.exports = codec => {
 	return {
-		decode: async (content) => {
-			const source = msg.toString('utf8').trim()
+		decode: async (data) => {
+			const source = data.toString('utf8').trim()
 
 		    let match
 		    const len = parsers.length

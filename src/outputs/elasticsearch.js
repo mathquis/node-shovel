@@ -1,292 +1,277 @@
 const File             = require('fs')
 const Path             = require('path')
 const {Client, errors} = require('@elastic/elasticsearch')
-const OutputNode       = require('../output')
-const Utils            = require('../utils')
 
 const META_INDEX_TEMPLATE = 'elasticsearch_index'
 
-class ElasticsearchOutput extends OutputNode {
-  async setup() {
-    this.templateCreated = false
+module.exports = node => {
+   let client, flushTimeout, templateCreated
 
-    let ca
-    if ( this.getConfig('ca') ) {
-      const caPath = Path.resolve(process.cwd(), this.getConfig('ca'))
-      ca = File.readFileSync(caPath)
-    }
+   let queue = []
 
-    const scheme = ca ? 'https' : this.getConfig('scheme')
+   node
+      .registerConfig({
+         scheme: {
+            doc: '',
+            format: ['http', 'https'],
+            default: 'https'
+         },
+         host: {
+            doc: '',
+            format: String,
+            default: 'localhost',
+         },
+         port: {
+            doc: '',
+            format: 'port',
+            default: 9200,
+         },
+         username: {
+            doc: '',
+            format: String,
+            default: '',
+         },
+         password: {
+            doc: '',
+            format: String,
+            default: '',
+            sensitive: true,
+         },
+         ca: {
+            doc: '',
+            format: String,
+            default: '',
+         },
+         reject_unauthorized: {
+            doc: '',
+            format: Boolean,
+            default: true
+         },
+         index_name: {
+            doc: '',
+            format: String,
+            default: 'message',
+         },
+         index_shard: {
+            doc: '',
+            format: String,
+            default: '',
+         },
+         queue_size: {
+            doc: '',
+            format: Number,
+            default: 1000
+         },
+         queue_timeout: {
+            doc: '',
+            format: Number,
+            default: 10000
+         },
+         template: {
+            doc: '',
+            format: String,
+            default: '',
+         }
+      })
+      .on('start', async () => {
+         setupClient()
+         try {
+            await setupTemplate()
+         } catch (err) {
+            node.log.warn(err.message)
+         }
+         startFlushTimeout()
+         await node.up()
+      })
+      .on('stop', async () => {
+         stopFlushTimeout()
+         await flush()
+      })
+      .on('in', async (message) => {
+         queue.push(message)
+         if ( queue.length >= node.getConfig('queue_size') ) {
+            await flush()
+         }
+         startFlushTimeout()
+      })
 
-    const opts = {
-      node: `${scheme}://${this.getConfig('host')}:${this.getConfig('port')}`,
-      auth: {
-        username: this.getConfig('username'),
-        password: this.getConfig('password')
-      },
-      ssl: {
-        ca,
-        rejectUnauthorized: this.getConfig('reject_unauthorized')
-      }
-    }
-
-    this.log.info('Using index: %s', this.indexShardName)
-
-    this.client         = new Client(opts)
-    this.queue          = []
-    this.flushTimeout   = null
-  }
-
-  get configSchema() {
-    return {
-      scheme: {
-        doc: '',
-        default: 'https',
-        arg: 'es-scheme',
-        env: 'ELASTICSEARCH_SCHEME'
-      },
-      host: {
-        doc: '',
-        default: 'localhost',
-        arg: 'es-host',
-        env: 'ELASTICSEARCH_HOST'
-      },
-      port: {
-        doc: '',
-        format: 'port',
-        default: 9200,
-        arg: 'es-port',
-        env: 'ELASTICSEARCH_PORT'
-      },
-      username: {
-        doc: '',
-        default: '',
-        env: 'ELASTICSEARCH_USERNAME'
-      },
-      password: {
-        doc: '',
-        default: '',
-        sensitive: true,
-        env: 'ELASTICSEARCH_PASSWORD'
-      },
-      ca: {
-        doc: '',
-        default: '',
-        arg: 'es-ca-cert',
-        env: 'ELASTICSEARCH_CA_CERT'
-      },
-      reject_unauthorized: {
-        doc: '',
-        default: true,
-        format: Boolean,
-        arg: 'es-reject-unauthorized',
-        env: 'ELASTICSEARCH_SSL_VERIFY'
-      },
-      index_name: {
-        doc: '',
-        default: 'message',
-        arg: 'es-index-name',
-        env: 'ELASTICSEARCH_INDEX_NAME'
-      },
-      index_shard: {
-        doc: '',
-        default: '',
-        arg: 'es-index-shard',
-        env: 'ELASTICSEARCH_INDEX_SHARD'
-      },
-      queue_size: {
-        doc: '',
-        default: 1000,
-        format: Number,
-        arg: 'es-queue-size'
-      },
-      queue_timeout: {
-        doc: '',
-        default: 10000,
-        format: Number,
-        arg: 'es-queue-timeout'
-      },
-      template: {
-        doc: '',
-        default: '',
-        arg: 'es-template'
-      }
-    }
-  }
-
-  get indexShardName() {
-    const indexShard = this.getConfig('index_shard')
-    return this.getConfig('index_name') + ( indexShard ? `-${indexShard}` : '' )
-  }
-
-  async setupTemplate() {
-    if ( this.templateCreated ) return
-
-    const templateFile = this.getConfig('template')
-    if ( templateFile ) {
-      this.log.debug('Setting up template...')
-
-      let tpl
-      try {
-        tpl = Utils.loadFn(templateFile, [this.pipelineConfig.path])
-        if ( typeof tpl === 'function' ) {
-          tpl = tpl(this.config)
-        }
-      } catch (err) {
-        throw new Error(`Template "${templateFile}" not found: ${err.message}`)
-      }
+   async function flush() {
+      stopFlushTimeout()
 
       try {
-        await this.client.indices.getTemplate({
-          name: tpl.name
-        })
-        this.log.debug('Template already created')
-        return
+         await setupTemplate()
       } catch (err) {
-        this.log.warn('Template "%s" not created', tpl.name)
+         node.log.warn(err.message)
+         startFlushTimeout()
+         return
       }
 
-      try {
-        this.log.debug('Creating template...')
-        await this.client.indices.putTemplate({
-          name: tpl.name,
-          body: tpl.template
-        })
-        this.log.info('Created template')
-      } catch (err) {
-        throw new Error(`Unable to create template: ${err.message}`)
-      }
-    }
+      // Get the queue messages
+      const messages = queue
 
-    this.templateCreated = true
-  }
+      // Empty the queue so new messages can start coming in
+      queue = []
 
-  async start() {
-    try {
-      await this.setupTemplate()
-    } catch (err) {
-      this.log.warn(err.message)
-    }
-    this.startFlushTimeout()
-    await super.start()
-    this.up()
-  }
+      const errorIds = new Map()
 
-  async stop() {
-    this.stopFlushTimeout()
-    await this.flush()
-    this.down()
-    await super.stop()
-  }
+      if ( messages.length > 0 ) {
 
-  startFlushTimeout() {
-    if ( this.flushTimeout ) return
-    this.stopFlushTimeout()
-    this.flushTimeout = setTimeout(() => {
-      this.flush()
-    }, this.getConfig('queue_timeout'))
-    this.log.debug('Next flush in %dms', this.getConfig('queue_timeout'))
-  }
+         const st = (new Date()).getTime()
 
-  stopFlushTimeout() {
-    if ( !this.flushTimeout ) return
-    clearTimeout(this.flushTimeout)
-    this.flushTimeout = null
-  }
+         node.log.debug('Flushing %d messages...', messages.length)
 
-  async in(message) {
-    await super.in(message)
-    this.queue.push(message)
-    if ( this.queue.length >= this.getConfig('queue_size') ) {
-      await this.flush()
-    }
-    this.startFlushTimeout()
-  }
+         // Index the messages
+         try {
+            const data = {
+               _source: ['uuid'],
+               body: messages.flatMap(message => {
+                  const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || getIndexShardName()
+                  return [
+                     {
+                        index: {
+                           _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+                           _id: message.id
+                        }
+                     },
+                     message.content
+                  ]
+               })
+            }
+            const response = await client.bulk(data, {
+               filterPath: 'items.*.error,items.*._id'
+            })
 
-  async flush() {
-    this.stopFlushTimeout()
+            const et = (new Date()).getTime()
 
-    try {
-      await this.setupTemplate()
-    } catch (err) {
-      this.log.warn(err.message)
-      this.startFlushTimeout()
-      return
-    }
+            node.log.info('Flushed %d messages in %fms', messages.length, et-st)
 
-    // Get the queue messages
-    const messages = this.queue
+            node.up()
 
-    // Empty the queue so new messages can start coming in
-    this.queue = []
+            // Get messages in error
+            if ( response.errors ) {
+               response.items.forEach(item => {
+                  errorIds.set(item._id, true)
+               })
+            }
 
-    const errorIds = new Map()
+         } catch (err) {
+            node.error(err)
 
-    if ( messages.length > 0 ) {
+            if ( err instanceof errors.ConnectionError ) {
+               node.down()
+            } else if ( err instanceof errors.NoLivingConnectionsError ) {
+               node.down()
+            }
 
-      const st = (new Date()).getTime()
-
-      this.log.debug('Flushing %d messages...', messages.length)
-
-      // Index the messages
-      try {
-        const response = await this.client.bulk({
-          _source: ['uuid'],
-          body: messages.flatMap(message => {
-            const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || this.indexShardName
-            return [
-              {
-                index: {
-                  _index: this.renderTemplate(indexTemplate, message).toLowerCase(),
-                  _id: message.id
-                }
-              },
-              message.content
-            ]
-          })
-        }, {
-          filterPath: 'items.*.error,items.*._id'
-        })
-
-        const et = (new Date()).getTime()
-
-        this.log.info('Flushed %d messages in %fms', messages.length, et-st)
-
-        this.up()
-
-        // Get messages in error
-        if ( response.errors ) {
-          response.items.forEach(item => {
-            errorIds.set(item._id, true)
-          })
-        }
-
-      } catch (err) {
-        this.error(err)
-
-        if ( err instanceof errors.ConnectionError ) {
-          this.down()
-        } else if ( err instanceof errors.NoLivingConnectionsError ) {
-          this.down()
-        }
-
-        messages.forEach(message => {
-          errorIds.set(message.id, true)
-        })
-      }
-    } else {
-      this.log.debug('Nothing to flush')
-    }
-
-    // Notify messages processing
-    messages.forEach(message => {
-      if ( errorIds.get(message.id) ) {
-        this.nack(message)
+            messages.forEach(message => {
+               errorIds.set(message.id, true)
+            })
+         }
       } else {
-        this.ack(message)
+         node.log.debug('Nothing to flush')
       }
-    })
-  }
-}
 
-module.exports = ElasticsearchOutput
+      // Notify messages processing
+      messages.forEach(message => {
+         if ( errorIds.get(message.id) ) {
+            node.nack(message)
+         } else {
+            node.ack(message)
+         }
+      })
+   }
+
+   function setupClient() {
+      templateCreated = false
+
+      let {ca, scheme, host, port, username, password, reject_unauthorized} = node.getConfig()
+
+      let caCert
+      if ( ca ) {
+         const caPath = Path.resolve(node.pipelineConfig.path, ca)
+         caCert = File.readFileSync(caPath)
+         if ( caCert ) {
+            scheme = https
+         }
+      }
+
+      const opts = {
+         node: `${scheme}://${host}:${port}`,
+         auth: {
+            username,
+            password
+         },
+         ssl: {
+            ca: caCert,
+            rejectUnauthorized: reject_unauthorized
+         }
+      }
+
+      node.log.info('Using index: %s', getIndexShardName())
+
+      client = new Client(opts)
+   }
+
+   async function setupTemplate() {
+      if ( templateCreated ) return
+
+      const {template} = node.getConfig()
+      if ( template ) {
+         node.log.debug('Setting up template...')
+
+         let tpl
+         try {
+            tpl = node.util.loadFn(template, [node.pipelineConfig.path])
+            if ( typeof tpl === 'function' ) {
+               tpl = tpl(node.getConfig())
+            }
+         } catch (err) {
+            throw new Error(`Template "${template}" not found: ${err.message}`)
+         }
+
+         try {
+            await client.indices.getTemplate({
+               name: tpl.name
+            })
+            node.log.debug('Template already created')
+            return
+         } catch (err) {
+            node.log.warn('Template "%s" not created', tpl.name)
+         }
+
+         try {
+            node.log.debug('Creating template...')
+            await client.indices.putTemplate({
+               name: tpl.name,
+               body: tpl.template
+            })
+            node.log.info('Created template')
+         } catch (err) {
+            throw new Error(`Unable to create template: ${err.message}`)
+         }
+      }
+
+      templateCreated = true
+   }
+
+   function getIndexShardName() {
+      const indexShard = node.getConfig('index_shard')
+      return node.getConfig('index_name') + ( indexShard ? `-${indexShard}` : '' )
+   }
+
+   function startFlushTimeout() {
+      if ( flushTimeout ) return
+      stopFlushTimeout()
+      const queueTimeoutMs = node.getConfig('queue_timeout')
+      flushTimeout = setTimeout(() => {
+         flush()
+      }, queueTimeoutMs)
+      node.log.debug('Next flush in %dms', queueTimeoutMs)
+   }
+
+   function stopFlushTimeout() {
+      if ( !flushTimeout ) return
+      clearTimeout(flushTimeout)
+      flushTimeout = null
+   }
+}

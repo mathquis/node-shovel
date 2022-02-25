@@ -1,9 +1,7 @@
-const configSchema = {}
-
-const codec = (codec, options) => {
+module.exports = codec => {
 	return {
-		decode: async (content) => {
-			return content
+		decode: async (data) => {
+			return data
 		},
 
 		encode: async (message) => {
@@ -11,5 +9,3 @@ const codec = (codec, options) => {
 		}
 	}
 }
-
-module.exports = {codec, configSchema}

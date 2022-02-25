@@ -1,142 +1,127 @@
-const Net        = require('net')
-const OutputNode = require('../output')
+const Net = require('net')
 
-class TcpOutput extends OutputNode {
-  get configSchema() {
-    return {
-      host: {
-        doc: '127.0.0.1',
-        format: String,
-        default: 'localhost'
-      },
-      port: {
-        doc: '',
-        format: 'port',
-        default: 515
-      },
-      reconnect_after_ms: {
-        doc: '',
-        format: Number,
-        default: 5000
+module.exports = node => {
+   let client, reconnectTimeout
+
+   node
+      .registerConfig({
+         host: {
+            doc: '127.0.0.1',
+            format: String,
+            default: 'localhost'
+         },
+         port: {
+            doc: '',
+            format: 'port',
+            default: 515
+         },
+         reconnect_after_ms: {
+            doc: '',
+            format: Number,
+            default: 5000
+         }
+      })
+      .on('start', async () => {
+         connect()
+      })
+      .on('stop', async () => {
+         if ( client ) {
+            await new Promise((resolve, reject) => {
+               client.removeAllListeners()
+               client.on('close', () => {
+                  client = null
+                  resolve()
+               })
+               client.end()
+            })
+         }
       }
-    }
-  }
+      .on('up', () => {
+         const q = queue
+         queue = []
+         q.forEach(message => {
+            node.in(message)
+         })
+      })
+      .on('in', async (message) => {
+         try {
+            if ( client && !client.pending ) {
+               const content = await node.encode(message)
+               if ( !content ) return
+               client.write(content + '\n', 'utf8', err => {
+                  if ( err ) {
+                     queue.push(message)
+                     return
+                  }
+                  node.ack(message)
+               })
+            } else {
+               queue.push(message)
+            }
+         } catch (err) {
+            node.nack(message)
+            node.error(err)
+         }
+      })
 
-  get reconnectAfterMs() {
-    const reconnectAfterMs = parseInt(this.getConfig('reconnect_after_ms'))
-    if ( !reconnectAfterMs || isNaN(reconnectAfterMs) ) {
-      return 500
-    }
-    return reconnectAfterMs
-  }
+   async function connect() {
+      try {
+         node.log.debug('Connecting...')
 
-  async setup() {
-    this.queue = []
-  }
+         clearReconnectTimeout()
 
-  async connect() {
-    try {
-      this.log.debug('Connecting...')
+         client = new Net.Socket()
 
-      this.clearReconnectTimeout()
+         const {host, port} = node.getConfig()
 
-      this.client = new Net.Socket()
+         client.connect(
+            port,
+            host,
+            () => {
+               node.log.debug('Connected')
+               node.up()
+            }
+         )
 
-      this.client.connect(
-        this.getConfig('port'),
-        this.getConfig('host'),
-        () => {
-          this.onConnect()
-        }
-      )
+         client
+            .on('close', err => {
+               node.log.debug('Connection closed')
+               if ( err ) {
+                  node.error(err)
+               }
+               reconnect()
+            })
+            .on('error', err => {
+               node.error(err)
+               reconnect()
+            })
 
-      this.client
-        .on('close', err => {
-          this.log.debug('Connection closed')
-          if ( err ) {
-            this.error(err)
-          }
-          this.reconnect()
-        })
-        .on('error', err => {
-          this.error(err)
-          this.reconnect()
-        })
-
-    } catch (err) {
-      this.error(err)
-      this.reconnect()
-    }
-  }
-
-  async reconnect() {
-    this.log.debug('Reconnecting in %d...', this.reconnectAfterMs)
-    this.client.removeAllListeners();
-    this.client = null
-    this.down()
-    this.clearReconnectTimeout()
-    this.reconnectTimeout = setTimeout(() => {
-      this.connect()
-    }, this.reconnectAfterMs)
-  }
-
-  clearReconnectTimeout() {
-    if ( !this.reconnectTimeout ) return
-    clearTimeout(this.reconnectTimeout)
-    this.reconnectTimeout = null
-  }
-
-  async onConnect() {
-    this.log.debug('Connected')
-    this.up()
-  }
-
-  up() {
-    super.up()
-    const queue = this.queue
-    this.queue = []
-    queue.forEach(message => {
-      this.in(message)
-    })
-  }
-
-  async start() {
-    this.log.debug('Starting...')
-    await this.connect()
-    await super.start()
-  }
-
-  async stop() {
-    this.log.debug('Stopping...')
-    if ( this.client ) {
-      this.client.end()
-      this.client.removeAllListeners();
-      this.client = null
-    }
-    this.down()
-    await super.stop()
-  }
-
-  async in(message) {
-    await super.in(message)
-    try {
-      if ( this.client && !this.client.pending ) {
-        const data = await this.encode(message)
-        this.client.write(data + '\n', 'utf8', err => {
-          if ( err ) {
-            this.queue.push(message)
-            return
-          }
-          this.ack(message)
-        })
-      } else {
-        this.queue.push(message)
+      } catch (err) {
+         node.error(err)
+         reconnect()
       }
-    } catch (err) {
-      this.nack(message)
-      this.error(err)
-    }
-  }
+   }
+
+   async function reconnect() {
+      const reconnectAfterMs = node.config.get('reconnect_after_ms')
+      node.log.debug('Reconnecting in %d...', reconnectAfterMs)
+      client.removeAllListeners();
+      client = null
+      node.down()
+      clearReconnectTimeout()
+      reconnectTimeout = setTimeout(() => {
+         connect()
+      }, reconnectAfterMs)
+   }
+
+   function clearReconnectTimeout() {
+      if ( !reconnectTimeout ) return
+      clearTimeout(reconnectTimeout)
+      reconnectTimeout = null
+   }
+
+   function onConnect() {
+      node.log.debug('Connected')
+      node.up()
+   }
 }
-
-module.exports = TcpOutput

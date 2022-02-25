@@ -1,59 +1,34 @@
-const Dgram      = require('dgram')
-const OutputNode = require('../output')
+const Dgram = require('dgram')
 
-class UdpOutput extends OutputNode {
-  get configSchema() {
-    return {
-      host: {
-        doc: '127.0.0.1',
-        format: String,
-        default: 'localhost'
-      },
-      port: {
-        doc: '',
-        format: 'port',
-        default: 515
-      }
-    }
-  }
+module.exports = node => {
+   let client
 
-  async setup() {
-    this.client = Dgram.createSocket('udp4')
-  }
-
-  up() {
-    super.up()
-    const queue = this.queue
-    this.queue = []
-    queue.forEach(message => {
-      this.in(message)
-    })
-  }
-
-  async start() {
-    this.log.debug('Starting...')
-    await super.start()
-    this.up()
-  }
-
-  async stop() {
-    this.log.debug('Stopping...')
-    this.down()
-    await super.stop()
-  }
-
-  async in(message) {
-    await super.in(message)
-    const data = await this.encode(message)
-    this.client.send(data + '\n', this.getConfig('port'), this.getConfig('host'), err => {
-      if ( err ) {
-        this.nack(message)
-        this.error(err)
-        return
-      }
-      this.ack(message)
-    })
-  }
+   node
+      .registerConfig({
+         host: {
+            doc: '127.0.0.1',
+            format: String,
+            default: 'localhost'
+         },
+         port: {
+            doc: '',
+            format: 'port',
+            default: 515
+         }
+      })
+      .on('start', () => {
+         client = Dgram.createSocket('udp4')
+      })
+      .on('in', async (message) => {
+         const content = await node.encode(message)
+         if ( !content ) return
+         client.send(content + '\n', node.getConfig('port'), node.getConfig('host'), err => {
+            if ( err ) {
+               node.nack(message)
+               node.error(err)
+               return
+            }
+            node.ack(message)
+         })
+      })
 }
-
-module.exports = UdpOutput

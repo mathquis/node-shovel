@@ -1,22 +1,13 @@
-const OutputNode = require('../output')
-
-class StdoutOutput extends OutputNode {
-  async start() {
-    await super.start();
-    this.up()
-  }
-
-  async stop() {
-    this.down()
-    await super.stop();
-  }
-
-  async in(message) {
-    await super.in(message)
-    const data = await this.encode(message)
-    process.stdout.write(data + '\n')
-    this.ack(message)
-  }
+module.exports = node => {
+   node
+      .on('in', async (message) => {
+         node.log.debug('%O', message)
+         const content = await node.encode(message)
+         if ( !content ) return
+         process.stdout.write(content + '\n')
+         node.ack(message)
+      })
+      .on('start', async () => {
+         await node.up()
+      })
 }
-
-module.exports = StdoutOutput

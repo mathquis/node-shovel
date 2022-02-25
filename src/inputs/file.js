@@ -1,83 +1,85 @@
 const Path      = require('path')
 const Readline  = require('readline')
-const InputNode = require('../input')
 const Tail      = require('tail').Tail
 
 const START_POSITION_BEGINNING = 'beginning'
 const START_POSITION_END = 'end'
 
-class FileInput extends InputNode {
+module.exports = node => {
+   let watcher
 
-  get configSchema() {
-    return {
-      file: {
-        doc: '',
-        format: String,
-        default: ''
-      },
-      separator: {
-        doc: '',
-        format: RegExp,
-        default: /[\r]?\n/
-      },
-      start_position: {
-        doc: '',
-        format: [START_POSITION_BEGINNING, START_POSITION_END],
-        default: START_POSITION_END
-      },
-      'encoding': {
-        doc: '',
-        format: String,
-        default: 'utf-8'
-      }
-    }
-  }
-
-  async start() {
-    const filePath = Path.resolve(this.pipelineConfig.path, this.getConfig('file'))
-
-    const opts = {
-      separator: this.getConfig('separator'),
-      fromBeginning: this.getConfig('start_position') === START_POSITION_BEGINNING,
-      encoding: this.getConfig('encoding'),
-      follow: true,
-      nLines: 0,
-      flushAtEOF: false,
-      logger: {
-        info: (...data) => {
-          this.log.debug(...data)
-        },
-        error: (...data) => {
-          this.log.error(...data)
-        }
-      }
-    }
-
-    this.watcher = new Tail(filePath, opts)
-
-    this.watcher
-      .on('error', err => {
-        this.log.error(err.stack)
+   node
+      .registerConfig({
+         file: {
+            doc: '',
+            format: String,
+            default: ''
+         },
+         separator: {
+            doc: '',
+            format: RegExp,
+            default: /[\r]?\n/
+         },
+         start_position: {
+            doc: '',
+            format: [START_POSITION_BEGINNING, START_POSITION_END],
+            default: START_POSITION_END
+         },
+         encoding: {
+            doc: '',
+            format: String,
+            default: 'utf-8'
+         }
       })
-      .on('line', async line => {
-        this.log.debug('Received line: %s (length: %d)', line, line.length)
-        if ( line.length === 0 ) return
-        this.in('[FILE]')
-        const message = await this.decode(line)
-        this.out(message)
+      .on('start', async () => {
+         const {file, separator, start_position, encoding} = node.getConfig()
+
+
+         const filePath = Path.resolve(node.pipelineConfig.path, file)
+
+         const opts = {
+            separator,
+            fromBeginning: start_position === START_POSITION_BEGINNING,
+            encoding,
+            follow: true,
+            nLines: 0,
+            flushAtEOF: false,
+            logger: {
+               info: (...data) => {
+                  node.log.debug(...data)
+               },
+               error: (...data) => {
+                  node.log.error(...data)
+               }
+            }
+         }
+
+         watcher = new Tail(filePath, opts)
+
+         watcher
+            .on('error', err => {
+               node.log.error(err.stack)
+            })
+            .on('line', async line => {
+               node.log.debug('Received line: %s (length: %d)', line, line.length)
+               if ( line.length === 0 ) return
+               node.in()
+               try {
+                  const messages = await node.decode(line)
+                  messages.forEach(message => {
+                     node.out(message)
+                  })
+               } catch (err) {
+                  node.error(err)
+                  node.reject()
+               }
+            })
+
+         node.up()
       })
-
-    await super.start()
-    this.up()
-  }
-
-  async stop() {
-    if ( this.watcher ) {
-      this.watcher.unwatch()
-    }
-    this.down()
-    await super.stop()
-  }
+      .on('stop', async () => {
+         if ( watcher ) {
+            watcher.unwatch()
+         }
+      })
 }
-
-module.exports = FileInput

@@ -21,6 +21,7 @@
     "cron": "^1.8.2",
     "csv-parse": "^5.0.4",
     "csv-stringify": "^6.0.5",
+    "events-async": "^1.2.1",
     "js-yaml": "^4.1.0",
     "json5": "^2.2.0",
     "koa": "^2.13.4",

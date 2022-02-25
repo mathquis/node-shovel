@@ -3,6 +3,9 @@ workers: 1
 
 input:
   use: stdin
+  split: true
+  codec:
+    use: json
   options:
 
 pipeline:

@@ -1,70 +1,64 @@
-const Dgram     = require('dgram')
-const InputNode = require('../input')
+const Dgram = require('dgram')
 
 const META_UDP_PROPERTIES = 'input_udp_properties'
 
-class UdpInput extends InputNode {
-  get configSchema() {
-    return {
-      interface: {
-        doc: '',
-        default: '',
-        arg: 'udp-interface',
-        env: 'UDP_INTERFACE'
-      },
-      port: {
-        doc: '',
-        format: 'port',
-        default: 514,
-        arg: 'udp-port',
-        env: 'UDP_PORT'
-      }
-    }
-  }
+module.exports = node => {
+   let server
 
-  async onMessage(data, rinfo) {
-    this.in('[UDP]')
-    let message
-    try {
-      message = await this.decode(data)
-      message.setMetas([
-        [META_UDP_PROPERTIES, rinfo]
-      ])
-      this.out(message)
-    } catch (err) {
-      this.error(err)
-    }
-  }
+   node
+      .registerConfig({
+         interface: {
+            doc: '',
+            format: String,
+            default: ''
+         },
+         port: {
+            doc: '',
+            format: 'port',
+            default: 514
+         },
+         type: {
+            doc: '',
+            format: ['udp4', 'udp6'],
+            default: 'udp4'
+         }
+      })
+      .on('start', async () => {
+         const {interface, port, type} = node.getConfig()
 
-  async start() {
-    this.server = Dgram.createSocket({type: 'udp4', reuseAddr: true})
-    this.server
-      .on('listening', () => {
-        this.up()
-      })
-      .on('error', err => {
-        this.error(err)
-      })
-      .on('message', (data, rinfo) => {
-        this.onMessage(data, rinfo)
-      })
-      .bind(
-        {
-          address: this.getConfig('interface'),
-          port: this.getConfig('port'),
-          exclusive: true
-        }
-      )
-    await super.start()
-  }
+         server = Dgram.createSocket({type, reuseAddr: true})
 
-  async stop() {
-    if ( this.server ) {
-      this.server.close()
-    }
-    this.down()
-    await super.stop()
-  }
+         server
+            .on('listening', () => {
+               node.up()
+            })
+            .on('error', err => {
+               node.error(err)
+            })
+            .on('message', (data, rinfo) => {
+               node.in()
+               try {
+                  const messages = await node.decode(data)
+                  messages.forEach(message => {
+                     message.setMetas([
+                        [META_UDP_PROPERTIES, rinfo]
+                     ])
+                     node.out(message)
+                  })
+               } catch (err) {
+                  node.error(err)
+                  node.reject()
+               }
+            })
+            .bind({
+               address: interface,
+               port,
+               exclusive: true
+            })
+      })
+      .on('stop', async () => {
+         if ( server ) {
+            server.close()
+         }
+      })
 }
-
-module.exports = UdpInput

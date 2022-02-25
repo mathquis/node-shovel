@@ -1,35 +1,33 @@
 const Readline = require('readline')
-const InputNode = require('../input')
 
-class StdinInput extends InputNode {
+module.exports = node => {
+   let reader
 
-  get configSchema() {
-    return {}
-  }
+   node
+      .on('start', async () => {
+         reader = Readline.createInterface({
+            input: process.stdin,
+            terminal: false
+         })
 
-  async start() {
-    this.reader = Readline.createInterface({
-      input: process.stdin,
-      terminal: false
-    })
+         reader.on('line', async line => {
+            node.log.debug('Received line: %s (length: %d)', line, line.length)
+            if ( line.length === 0 ) return
+            node.in()
+            try {
+               const messages = await node.decode(line)
+               messages.forEach(message => {
+                  node.out(message)
+               })
+            } catch (err) {
+               node.error(err)
+               node.reject()
+            }
+         })
 
-    this.reader.on('line', async line => {
-        this.log.debug('Received line: %s (length: %d)', line, line.length)
-        if ( line.length === 0 ) return
-        this.in('[STDIN]')
-        const message = await this.decode(line)
-        this.out(message)
-    })
-
-    await super.start()
-    this.up()
-  }
-
-  async stop() {
-    process.stdin.unref()
-    this.down()
-    await super.stop()
-  }
+         node.up()
+      })
+      .on('stop', async () => {
+         process.stdin.unref()
+      })
 }
-
-module.exports = StdinInput

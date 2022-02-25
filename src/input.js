@@ -1,87 +1,67 @@
-const Path          = require('path')
-const Prometheus    = require('prom-client')
-const Node          = require('./node')
-const CodecOperator = require('./codec_operator')
-const Message       = require('./message')
-const Utils         = require('./utils')
+const Path        = require('path')
+const Prometheus  = require('prom-client')
+const Node        = require('./node')
+const Message     = require('./message')
+const Codec       = require('./icodec')
 
-class InputNode extends Node {
-  constructor(pipelineConfig) {
-    const {codec = {}, options = {}} = pipelineConfig.input
+class Input extends Node {
+   get configSchema() {
+      return {
+         ...super.configSchema,
+         split: {
+            doc: '',
+            format: Boolean,
+            default: true
+         },
+         codec: this.codec.configSchema
+      }
+   }
 
-    super(pipelineConfig, options)
+   get options() {
+      return this.pipelineConfig.input || {}
+   }
 
-    this.codec = new CodecOperator(codec.use, pipelineConfig, codec.options)
+   get includePaths() {
+      return [
+         ...super.includePaths,
+         Path.resolve(__dirname, './inputs')
+      ]
+   }
 
-    this.status = new Prometheus.Gauge({
-      name: 'input_status',
-      help: 'Status of the input node',
-      labelNames: ['pipeline', 'kind']
-    })
+   setup() {
+      this.codec = new Codec(this.pipelineConfig)
+   }
 
-    this.counter = new Prometheus.Counter({
-      name: 'input_message',
-      help: 'Number of input messages',
-      labelNames: ['pipeline', 'kind']
-    })
-  }
+   setupMonitoring() {
+      this.status = new Prometheus.Gauge({
+         name: 'input_status',
+         help: 'Status of the input node',
+         labelNames: ['pipeline', 'kind']
+      })
 
-  async decode(data) {
-    const content = await this.codec.decode(data)
-    return this.createMessage(content)
-  }
+      this.counter = new Prometheus.Counter({
+         name: 'input_message',
+         help: 'Number of input messages',
+         labelNames: ['pipeline', 'kind']
+      })
+   }
 
-  error(err) {
-    this.counter.inc({...this.defaultLabels, kind: 'error'})
-    super.error(err)
-  }
+   createMessage(data) {
+      return new Message(data)
+   }
 
-  up() {
-    this.status.set({...this.defaultLabels, kind: 'up'}, 1)
-    super.up()
-  }
+   async decode(data) {
+      const contents = await this.codec.decode(data)
+      if ( !this.config.get('split') || !Array.isArray(contents) ) {
+         return [this.createMessage(contents)]
+      }
+      return contents.map(content => this.createMessage(content))
+   }
 
-  down() {
-    this.status.set({...this.defaultLabels, kind: 'up'}, 0)
-    super.down()
-  }
-
-  async in(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'in'})
-  }
-
-  out(message) {
-    this.log.debug('-> OUT %s', message)
-    this.emit('out', message)
-  }
-
-  createMessage(content) {
-  	return new Message(content)
-  }
-
-  ack(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'acked'})
-    super.ack(message)
-  }
-
-  nack(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'nacked'})
-    super.nack(message)
-  }
-
-  ignore(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'ignored'})
-    super.ignore(message)
-  }
-
-  reject(message) {
-    this.counter.inc({...this.defaultLabels, kind: 'out'})
-    this.counter.inc({...this.defaultLabels, kind: 'rejected'})
-    super.reject(message)
-  }
+   in() {
+       this.log.debug('<- IN')
+       this.counter.inc({...this.defaultLabels, kind: 'in'})
+   }
 }
 
-module.exports = InputNode
+module.exports = Input
