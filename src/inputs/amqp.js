@@ -200,6 +200,7 @@ module.exports = node => {
          try {
             messages = await node.decode(data.content)
             messages.forEach(message => {
+               message.setContentType(data.properties.contentType)
                message.setMetas([
                   [META_AMQP_FIELDS, data.fields],
                   [META_AMQP_PROPERTIES, data.properties]

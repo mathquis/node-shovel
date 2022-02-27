@@ -1,7 +1,8 @@
-const File   = require('fs')
-const Path   = require('path')
-const Pupa   = require('pupa')
-const Logger = require('./logger')
+const File              = require('fs')
+const Path              = require('path')
+const Pupa              = require('pupa')
+const ContentTypeParser = require('whatwg-mimetype')
+const Logger            = require('./logger')
 
 const log = Logger.child({category: 'utils'})
 
@@ -45,6 +46,11 @@ function renderTemplate(tpl, message) {
    return Pupa(tpl, data)
 }
 
+function parseContentType(contentType) {
+   const {essence: mimeType, parameters} = new ContentTypeParser(contentType)
+   return {mimeType, parameters: new Map(parameters.entries())}
+}
+
 module.exports = {
-   loadFn, renderTemplate
+   loadFn, renderTemplate, parseContentType
 }

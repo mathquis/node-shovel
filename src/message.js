@@ -1,12 +1,17 @@
+const Utils = require('./utils')
+
 let messageId = 0
+const defaultContentType = Utils.parseContentType('application/octet-stream')
+console.log(defaultContentType)
 
 class Message {
    constructor(content) {
-      this._uuid  = ++messageId
-      this.id     = this._uuid
-      this.date   = new Date()
-      this.content  = content
-      this.metas    = {}
+      this._uuid       = ++messageId
+      this.id          = this._uuid
+      this.date        = new Date()
+      this.contentType = defaultContentType
+      this.content     = content
+      this.metas       = {}
    }
 
    get uuid() {
@@ -22,6 +27,12 @@ class Message {
          throw new Error('Invalid date')
       }
       this.date = date
+   }
+
+   setContentType(contentType) {
+      if ( contentType ) {
+         this.contentType = Utils.parseContentType(contentType)
+      }
    }
 
    hasMeta(key) {

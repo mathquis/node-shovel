@@ -30,6 +30,7 @@
     "prom-client": "^14.0.1",
     "pupa": "^2.1.1",
     "tail": "^2.2.4",
+    "whatwg-mimetype": "^3.0.0",
     "winston": "^3.3.3"
   }
 }

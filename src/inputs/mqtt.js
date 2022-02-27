@@ -93,15 +93,16 @@ module.exports = node => {
             })
             .on('message', async (topic, data, packet) => {
                node.in()
-               const {cmd, retain, qos, dup} = packet
-               const properties = {cmd, retain, qos, dup}
+               const {cmd, retain, qos, dup, properties = {}} = packet
+               const props = {cmd, retain, qos, dup, properties}
                let message
                try {
                   messages = await node.decode(data)
                   messages.forEach(message => {
+                     message.setContentType(properties.contentType)
                      message.setMetas([
                         [META_MQTT_TOPIC, topic],
-                        [META_MQTT_PROPERTIES, properties]
+                        [META_MQTT_PROPERTIES, props]
                      ])
                      node.out(message)
                   })
@@ -109,7 +110,7 @@ module.exports = node => {
                   message = node.createMessage(data)
                   message.setMetas([
                      [META_MQTT_TOPIC, topic],
-                     [META_MQTT_PROPERTIES, properties]
+                     [META_MQTT_PROPERTIES, props]
                   ])
                   node.error(err)
                   node.reject(message)

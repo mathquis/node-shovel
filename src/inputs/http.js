@@ -139,6 +139,7 @@ module.exports = node => {
          const response = await Fetch(req.url, req)
          const messages = await node.decode(response)
          messages.forEach(message => {
+            message.setContentType(headers.contentType)
             message.setMetas([
                [META_HTTP_STATUS, response.status],
                [META_HTTP_HEADERS, response.headers],
