@@ -42,7 +42,7 @@ module.exports = node => {
          exchange_name: {
             doc: '',
             format: String,
-            default: 'exchange'
+            default: ''
          },
          queue_name: {
             doc: '',
@@ -58,6 +58,16 @@ module.exports = node => {
             doc: '',
             format: Number,
             default: 1000
+         },
+         durable: {
+            doc: '',
+            format: Boolean,
+            default: true
+         },
+         auto_delete: {
+            doc: '',
+            format: Boolean,
+            default: true
          },
          reconnect_after_ms: {
             doc: '',
@@ -169,17 +179,26 @@ module.exports = node => {
    async function onConnect() {
       node.log.debug('Connected')
 
-      const {queue_name, queue_size, exchange_name, routing_key, reconnect_after_ms} = node.getConfig()
+      const {
+         queue_name: queueName,
+         queue_size: queueSize,
+         durable,
+         auto_delete: autoDelete,
+         exchange_name: exchangeName,
+         routing_key: routingKey,
+         reconnect_after_ms: reconnectAfterMs
+      } = node.getConfig()
 
       channel = await connection.createChannel()
 
-      await channel.prefetch(queue_size)
+      await channel.prefetch(queueSize)
 
-      const queue = await channel.assertQueue(queue_name, {
-         durable: true
+      const queue = await channel.assertQueue(queueName, {
+         durable,
+         autoDelete
       })
 
-      await channel.bindQueue(queue_name, exchange_name, routing_key)
+      await channel.bindQueue(queueName, exchangeName, routingKey)
 
       channel
          .on('close', () => {
@@ -191,7 +210,7 @@ module.exports = node => {
             channel = null
             setTimeout(() => {
                onConnect()
-            }, reconnect_after_ms)
+            }, reconnectAfterMs)
          })
 
       channel.consume(queue_name, async data => {

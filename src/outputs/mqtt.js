@@ -63,7 +63,15 @@ module.exports = node => {
       })
       .on('start', async () => {
          // Connect to AMQP
-         const {url, username, password, ca, cert, key, reconnect_after_ms: reconnectPeriod} = node.getConfig()
+         const {
+            url,
+            username,
+            password,
+            ca,
+            cert,
+            key,
+            reconnect_after_ms: reconnectPeriod
+         } = node.getConfig()
 
          connection = MQTT.connect(url, {
             reconnectPeriod,
