@@ -20,10 +20,6 @@ workers: 2
 
 input:
   use: amqp
-  split: true
-  codec:
-    use: parser.js
-    options:
   options:
     vhost: '/'
     username: rabbitmq
@@ -33,8 +29,17 @@ input:
     queue_name: queue
     bind_pattern: '#'
 
+decoder:
+  use: parser.js
+  split: true
+  options:
+
 pipeline:
   use: pipeline.js
+  options:
+
+encoder:
+  use: noop
   options:
 
 output:
@@ -54,16 +59,18 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available inputs
 
 - amqp
-- file
 - http
 - mqtt
 - stdin
+- stream
+- tail
 - tcp
 - udp
 
 ### Available outputs
 
 - amqp
+- blackhole
 - elasticsearch
 - mqtt
 - stdout
@@ -74,20 +81,21 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 - csv
 - json
+- protobuf
 - syslog
 
-### Custom codec
+### Custom decoder/encoder
 
 ```javascript
-module.exports = codec => {
-  return {
-    decode: async data => {
-      return data
-    },
-    encode: async message => {
-      return [message.content]
-    }
-  }
+module.exports = node => {
+  node
+    .registerConfig({})
+    .on('decode', async (message) => {
+      node.out(message)
+    })
+    .on('encode', async (message) => {
+      node.out(message)
+    })
 }
 ```
 
@@ -142,7 +150,9 @@ module.exports = node => {
     .on('up', async () => {})
     .on('down', async () => {})
 
-    .on('in', async (message) => {})
+    .on('in', async (message) => {
+      node.out(message)
+    })
     .on('out', async (message) => {})
 
     .on('ack', async (message) => {})
