@@ -27,7 +27,8 @@ module.exports = node => {
          body: {
             doc: '',
             format: String,
-            default: ''
+            default: null,
+            nullable: true
          },
          username: {
             doc: '',
@@ -132,23 +133,17 @@ module.exports = node => {
       }
 
       node.log.info('Requesting endpoint [%s] %s', req.method, req.url)
-      node.log.debug('%O', req)
 
-      try {
-         node.in()
-         const response = await Fetch(req.url, req)
-         const messages = await node.decode(response)
-         messages.forEach(message => {
-            message.setContentType(headers.contentType)
-            message.setMetas([
-               [META_HTTP_STATUS, response.status],
-               [META_HTTP_HEADERS, response.headers],
-            ])
-            node.out(message)
-         })
-      } catch (err) {
-         node.error(err)
-         node.reject()
+      const response = await Fetch(req.url, req)
+
+      const options = {
+         contentType: response.headers.contentType,
+         metas: [
+            [META_HTTP_STATUS, response.status],
+            [META_HTTP_HEADERS, response.headers],
+         ]
       }
+      const payload = await response.text()
+      node.in(payload, options)
    }
 }

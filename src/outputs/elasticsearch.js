@@ -52,11 +52,6 @@ module.exports = node => {
             format: String,
             default: 'message',
          },
-         index_shard: {
-            doc: '',
-            format: String,
-            default: '',
-         },
          queue_size: {
             doc: '',
             format: Number,
@@ -125,7 +120,7 @@ module.exports = node => {
             const data = {
                _source: ['uuid'],
                body: messages.flatMap(message => {
-                  const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || getIndexShardName()
+                  const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || node.getConfig('index_name')
                   return [
                      {
                         index: {
@@ -207,7 +202,7 @@ module.exports = node => {
          }
       }
 
-      node.log.info('Using index: %s', getIndexShardName())
+      node.log.info('Using index: %s', node.getConfig('index_name'))
 
       client = new Client(opts)
    }
@@ -252,11 +247,6 @@ module.exports = node => {
       }
 
       templateCreated = true
-   }
-
-   function getIndexShardName() {
-      const indexShard = node.getConfig('index_shard')
-      return node.getConfig('index_name') + ( indexShard ? `-${indexShard}` : '' )
    }
 
    function startFlushTimeout() {

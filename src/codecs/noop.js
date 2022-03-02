@@ -1,11 +1,11 @@
-module.exports = codec => {
-	return {
-		decode: async (data) => {
-			return data
-		},
-
-		encode: async (message) => {
-			return message.content
-		}
-	}
+module.exports = node => {
+	node
+		.on('decode', message => {
+			message.content = message.payload
+			node.out(message)
+		})
+		.on('encode', message => {
+			message.payload = message.content
+			node.out(message)
+		})
 }

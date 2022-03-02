@@ -1,5 +1,5 @@
-module.exports = codec => {
-	codec
+module.exports = node => {
+	node
 		.registerConfig({
 			pretty: {
 				doc: '',
@@ -7,14 +7,12 @@ module.exports = codec => {
 				format: Boolean
 			}
 		})
-
-	return {
-		decode: async (data) => {
-			return JSON.parse(data.toString('utf8'))
-		},
-
-		encode: async (message) => {
-			return JSON.stringify(message.content, null, codec.getConfig('pretty') ? 2 : 0)
-		}
-	}
+		.on('decode', message => {
+			message.content = JSON.parse(message.payload.toString('utf8'))
+			node.out(message)
+		})
+		.on('encode', message => {
+			message.payload = JSON.stringify(message.content, null, node.getConfig('pretty') ? 2 : 0)
+			node.out(message)
+		})
 }

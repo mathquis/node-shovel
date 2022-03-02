@@ -51,6 +51,10 @@ function parseContentType(contentType) {
    return {mimeType, parameters: new Map(parameters.entries())}
 }
 
+function translate(value, dictionary, defaultValue) {
+   return dictionary[value] || defaultValue
+}
+
 module.exports = {
-   loadFn, renderTemplate, parseContentType
+   loadFn, renderTemplate, parseContentType, translate
 }

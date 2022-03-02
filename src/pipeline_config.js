@@ -61,8 +61,16 @@ class PipelineConfig {
       return this.config.input || {}
    }
 
+   get decoder() {
+      return this.config.decoder || {}
+   }
+
    get pipeline() {
       return this.config.pipeline || {}
+   }
+
+   get encoder() {
+      return this.config.encoder || {}
    }
 
    get output() {

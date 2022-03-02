@@ -214,27 +214,14 @@ module.exports = node => {
          })
 
       channel.consume(queue_name, async data => {
-         node.in()
-         let message
-         try {
-            messages = await node.decode(data.content)
-            messages.forEach(message => {
-               message.setContentType(data.properties.contentType)
-               message.setMetas([
-                  [META_AMQP_FIELDS, data.fields],
-                  [META_AMQP_PROPERTIES, data.properties]
-               ])
-               node.out(message)
-            })
-         } catch (err) {
-            message = node.createMessage(data.content)
-            message.setMetas([
-               [META_AMQP_FIELDS, data.fields],
-               [META_AMQP_PROPERTIES, data.properties]
-            ])
-            node.error(err)
-            node.reject(message)
+         const options = {
+            contentType: data.properties.contentType,
+            metas: [
+               [META_AMQP_FIELDS]: data.fields,
+               [META_AMQP_PROPERTIES]: data.properties
+            ]
          }
+         node.in(data.content, options)
       }, {
          consumerTag,
          noAck: false

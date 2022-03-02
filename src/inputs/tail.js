@@ -29,11 +29,15 @@ module.exports = node => {
             doc: '',
             format: String,
             default: 'utf-8'
+         },
+         follow: {
+            doc: '',
+            format: Boolean,
+            default: true
          }
       })
       .on('start', async () => {
-         const {file, separator, start_position, encoding} = node.getConfig()
-
+         const {file, separator, start_position, encoding, follow} = node.getConfig()
 
          const filePath = Path.resolve(node.pipelineConfig.path, file)
 
@@ -41,7 +45,7 @@ module.exports = node => {
             separator,
             fromBeginning: start_position === START_POSITION_BEGINNING,
             encoding,
-            follow: true,
+            follow,
             nLines: 0,
             flushAtEOF: false,
             logger: {
@@ -63,16 +67,7 @@ module.exports = node => {
             .on('line', async line => {
                node.log.debug('Received line: %s (length: %d)', line, line.length)
                if ( line.length === 0 ) return
-               node.in()
-               try {
-                  const messages = await node.decode(line)
-                  messages.forEach(message => {
-                     node.out(message)
-                  })
-               } catch (err) {
-                  node.error(err)
-                  node.reject()
-               }
+               node.in(line)
             })
 
          node.up()

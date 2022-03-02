@@ -64,25 +64,18 @@ module.exports = node => {
             })
 
             reader.on('line', line => {
-               node.in()
-               try {
-                  const messages = await node.decode(line)
-                  messages.forEach(message => {
-                     message.setMetas([
-                        [META_TCP_PROPERTIES, {
-                           remoteAddress,
-                           remoteFamily,
-                           remotePort,
-                           localAddress,
-                           localPort
-                        }]
-                     ])
-                     node.out(message)
-                  })
-               } catch (err) {
-                  node.error(err)
-                  node.reject()
+               const options = {
+                  metas: [
+                     [META_TCP_PROPERTIES, {
+                        remoteAddress,
+                        remoteFamily,
+                        remotePort,
+                        localAddress,
+                        localPort
+                     }]
+                  ]
                }
+               node.in(line, options)
             })
 
             socket.on('error', err => {

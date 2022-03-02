@@ -2,7 +2,6 @@ const Path        = require('path')
 const Prometheus  = require('prom-client')
 const Node        = require('./node')
 const Message     = require('./message')
-const Codec       = require('./icodec')
 
 class Input extends Node {
    get configSchema() {
@@ -12,8 +11,7 @@ class Input extends Node {
             doc: '',
             format: Boolean,
             default: true
-         },
-         codec: this.codec.configSchema
+         }
       }
    }
 
@@ -26,10 +24,6 @@ class Input extends Node {
          ...super.includePaths,
          Path.resolve(__dirname, './inputs')
       ]
-   }
-
-   setup() {
-      this.codec = new Codec(this.pipelineConfig)
    }
 
    setupMonitoring() {
@@ -46,21 +40,18 @@ class Input extends Node {
       })
    }
 
-   createMessage(data) {
-      return new Message(data)
+   createMessage(payload, options) {
+      options || (options = {})
+      const message = new Message(payload, options)
+      message.setContentType(options.contentType)
+      message.setMetas(options.metas || [])
+      return message
    }
 
-   async decode(data) {
-      const contents = await this.codec.decode(data)
-      if ( !this.config.get('split') || !Array.isArray(contents) ) {
-         return [this.createMessage(contents)]
-      }
-      return contents.map(content => this.createMessage(content))
-   }
-
-   in() {
-       this.log.debug('<- IN')
-       this.counter.inc({...this.defaultLabels, kind: 'in'})
+   in(payload, options = {}) {
+       const message = this.createMessage(payload, options)
+       super.in(message)
+       this.out(message)
    }
 }
 

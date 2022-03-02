@@ -30,25 +30,19 @@ module.exports = node => {
 
          server
             .on('listening', () => {
+               node.log.info('Listening on %s:%s (type: %s)', interface, port, type)
                node.up()
             })
             .on('error', err => {
                node.error(err)
             })
             .on('message', (data, rinfo) => {
-               node.in()
-               try {
-                  const messages = await node.decode(data)
-                  messages.forEach(message => {
-                     message.setMetas([
-                        [META_UDP_PROPERTIES, rinfo]
-                     ])
-                     node.out(message)
-                  })
-               } catch (err) {
-                  node.error(err)
-                  node.reject()
+               const options = {
+                  metas: [
+                     [META_UDP_PROPERTIES, rinfo]
+                  ]
                }
+               node.in(data, options)
             })
             .bind({
                address: interface,

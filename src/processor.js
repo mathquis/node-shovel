@@ -4,7 +4,9 @@ const Convict    = require('convict')
 const Logger     = require('./logger')
 const Utils      = require('./utils')
 const Input      = require('./input')
+const Decoder    = require('./decoder')
 const Pipeline   = require('./pipeline')
+const Encoder    = require('./encoder')
 const Output     = require('./output')
 
 const registers = []
@@ -30,7 +32,9 @@ class Processor {
       })
 
       this.setupInput()
+      this.setupDecoder()
       this.setupPipeline()
+      this.setupEncoder()
       this.setupOutput()
    }
 
@@ -41,36 +45,41 @@ class Processor {
    help() {
       return {
          input: this.input.help(),
+         decoder: this.decoder.help(),
          pipeline: this.pipeline.help(),
+         encoder: this.encoder.help(),
          output: this.output.help()
       }
    }
 
    async start() {
       await this.output.start()
+      await this.encoder.start()
       await this.pipeline.start()
+      await this.decoder.start()
       await this.input.start()
    }
 
    async stop() {
       await this.input.stop()
-      await this.pipeline.start()
+      await this.decoder.stop()
+      await this.pipeline.stop()
+      await this.encoder.stop()
       await this.output.stop()
    }
 
    async setupInput() {
-      try {
       this.input = new Input(this.pipelineConfig)
       this.input
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
-         .on('in', () => {
+         .on('in', message => {
             this.globalMessage.inc({...this.defaultLabels, kind:'in'})
          })
          .on('out', message => {
             this.processingMessage.inc({pipeline: this.name})
-            this.pipeline.in(message)
+            this.decoder.in(message)
          })
          .on('ack', message => {
             this.processingMessage.dec({pipeline: this.name})
@@ -92,19 +101,16 @@ class Processor {
             this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
             this.globalMessage.inc({...this.defaultLabels, kind: 'rejected'})
          })
-      } catch (err) {
-         console.error(err)
-      }
    }
 
-   setupPipeline() {
-      this.pipeline = new Pipeline(this.pipelineConfig)
-      this.pipeline
+   setupDecoder() {
+      this.decoder = new Decoder(this.pipelineConfig)
+      this.decoder
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
          .on('out', message => {
-            this.output.in(message)
+            this.pipeline.in(message)
          })
          .on('ack', message => {
             this.input.ack(message)
@@ -120,11 +126,37 @@ class Processor {
          })
    }
 
-   setupOutput() {
-      this.output = new Output(this.pipelineConfig)
-      this.output
+   setupPipeline() {
+      this.pipeline = new Pipeline(this.pipelineConfig)
+      this.pipeline
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
+         })
+         .on('out', message => {
+            this.encoder.in(message)
+         })
+         .on('ack', message => {
+            this.decoder.ack(message)
+         })
+         .on('nack', message => {
+            this.decoder.nack(message)
+         })
+         .on('ignore', message => {
+            this.decoder.ignore(message)
+         })
+         .on('reject', message => {
+            this.decoder.reject(message)
+         })
+   }
+
+   setupEncoder() {
+      this.encoder = new Encoder(this.pipelineConfig)
+      this.encoder
+         .on('error', err => {
+            this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
+         })
+         .on('out', message => {
+            this.output.in(message)
          })
          .on('ack', message => {
             this.pipeline.ack(message)
@@ -137,6 +169,26 @@ class Processor {
          })
          .on('reject', message => {
             this.pipeline.reject(message)
+         })
+   }
+
+   setupOutput() {
+      this.output = new Output(this.pipelineConfig)
+      this.output
+         .on('error', err => {
+            this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
+         })
+         .on('ack', message => {
+            this.encoder.ack(message)
+         })
+         .on('nack', message => {
+            this.encoder.nack(message)
+         })
+         .on('ignore', message => {
+            this.encoder.ignore(message)
+         })
+         .on('reject', message => {
+            this.encoder.reject(message)
          })
    }
 }

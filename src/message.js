@@ -2,20 +2,28 @@ const Utils = require('./utils')
 
 let messageId = 0
 const defaultContentType = Utils.parseContentType('application/octet-stream')
-console.log(defaultContentType)
 
 class Message {
-   constructor(content) {
+   constructor(payload) {
       this._uuid       = ++messageId
       this.id          = this._uuid
       this.date        = new Date()
       this.contentType = defaultContentType
-      this.content     = content
+      this.payload     = payload
+      this.content     = {}
       this.metas       = {}
    }
 
    get uuid() {
       return this._uuid
+   }
+
+   clone(content) {
+      const message = new Message(null)
+      message.content = content
+      message.contentType = this.contentType
+      message.metas = this.metas
+      return message
    }
 
    setId(id) {

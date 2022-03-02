@@ -13,16 +13,7 @@ module.exports = node => {
          reader.on('line', async line => {
             node.log.debug('Received line: %s (length: %d)', line, line.length)
             if ( line.length === 0 ) return
-            node.in()
-            try {
-               const messages = await node.decode(line)
-               messages.forEach(message => {
-                  node.out(message)
-               })
-            } catch (err) {
-               node.error(err)
-               node.reject()
-            }
+            node.in(line)
          })
 
          node.up()
