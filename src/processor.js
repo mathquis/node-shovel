@@ -69,7 +69,11 @@ class Processor {
    }
 
    async setupInput() {
-      this.input = new Input(this.pipelineConfig)
+      try {
+         this.input = new Input(this.pipelineConfig)
+      } catch (err) {
+         this.log.error(err)
+      }
       this.input
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})

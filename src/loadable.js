@@ -23,15 +23,11 @@ class Loadable extends EventEmitter {
       this.setupLogger()
 
       this.kind = this.config.get('use')
-      if (this.kind) {
-         try {
-            this.loader = Utils.loadFn(this.kind, this.includePaths)
-         } catch (err) {
-            throw new Error(`Unknown node "${this.kind} (${err.message})`)
-         }
-      } else {
+      if (!this.kind) {
          throw new Error(`Missing node kind`)
       }
+
+      this.loader = Utils.loadFn(this.kind, this.includePaths)
 
       if ( typeof this.loader !== 'function' ) {
          throw new Error(`Invalid node "${this.kind}" (not a function)`)
