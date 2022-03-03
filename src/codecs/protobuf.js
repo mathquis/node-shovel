@@ -1,5 +1,7 @@
 Protobuf = require('protobufjs')
 
+const META_PROTOBUF_CLASS_NAME = 'protobuf_class_name'
+
 module.exports = node => {
 	let root
 	let remainder = Buffer.alloc(0)
@@ -37,19 +39,11 @@ module.exports = node => {
 		})
 		.on('decode', async message => {
 			try {
-				const className = node.getConfig('class_name') || message.contentType.parameters.get('proto')
-				if ( !className ) {
-					throw new Error('Missing class name')
-				}
-				const messageClass = root.lookupType(className)
-				if ( !messageClass ) {
-					throw new Error(`Unknown class name "${className}"`)
-				}
 				if ( node.getConfig('delimited') ) {
-					message.content = parseDelimitedPayload(messageClass, message)
+					parseDelimitedPayload(message)
 					node.out(message)
 				} else {
-					message.content = messageClass.toObject(parsePayload(messageClass, message))
+					parsePayload(message)
 					node.out(message)
 				}
 			} catch (err) {
@@ -57,27 +51,68 @@ module.exports = node => {
 				node.reject(message)
 			}
 		})
-		.on('encode', async (payload) => {
-			// TODO
+		.on('encode', async (message) => {
+			try {
+				const className = message.getMeta(META_PROTOBUF_CLASS_NAME) || getClassName(message)
+				const messageClass = getMessageClass(className)
+				if ( node.getConfig('delimited') ) {
+					let contents = message.content
+					if ( !Array.isArray(content) ) {
+						contents = [content]
+					}
+					message.payload = Buffer.concat(contents.map(content => messageClass.encodeDelimited(content).finish()))
+					node.out(message)
+				} else {
+					message.payload = messageClass.encode(message.content).finish()
+				}
+				message.setMeta(META_PROTOBUF_CLASS_NAME, className)
+				console.log(message)
+				node.out(message)
+			} catch (err) {
+				node.error(err)
+				node.reject(message)
+			}
 		})
 
+	function getClassName(message) {
+		const className = node.getConfig('class_name') || message.contentType.parameters.get('proto')
+		if ( !className ) {
+			throw new Error('Missing class name')
+		}
+		return className
+	}
 
-	function parsePayload(messageClass, message) {
+	function getMessageClass(className) {
+		const messageClass = root.lookupType(className)
+		if ( !messageClass ) {
+			throw new Error(`Unknown class name "${className}"`)
+		}
+		return messageClass
+	}
+
+	function parsePayload(message) {
+		const className = getClassName(message)
+		const messageClass = getMessageClass(className)
+		let msg
 		let payload = message.payload
 		const contentType = node.getConfig('content_type') || message.contentType.mimeType
 		switch ( contentType ) {
 			case 'text/json':
 			case 'application/json':
-				return messageClass.fromObject(JSON.parse(payload))
+				msg = messageClass.fromObject(JSON.parse(payload))
 				break
 			case 'application/protobuf':
 			default:
-				return messageClass.decode(payload)
+				msg = messageClass.decode(payload)
 				break
 		}
+		message.setMeta(META_PROTOBUF_CLASS_NAME, className)
+		message.content = messageClass.toObject(msg)
 	}
 
-	function parseDelimitedPayload(messageClass, message) {
+	function parseDelimitedPayload(message) {
+		const className = getClassName(message)
+		const messageClass = getMessageClass(className)
 		const contents = []
 		const buf = Buffer.concat([remainder, message.payload])
 		let lastPos = 0
@@ -96,6 +131,7 @@ module.exports = node => {
 				remainder = buf.slice(lastPos)
 			}
 		}
-		return contents
+		message.setMeta(META_PROTOBUF_CLASS_NAME, className)
+		message.content = contents
 	}
 }
