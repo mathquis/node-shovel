@@ -54,7 +54,7 @@ module.exports = node => {
          const {delimiter, escape, quote, columns, encoding} = node.getConfig()
 
          message.payload = await new Promise((resolve, reject) => {
-            Serializer(message.content, {
+            Serializer([message.content], {
                delimiter,
                escape,
                quote,
