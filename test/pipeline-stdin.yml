@@ -3,18 +3,20 @@ workers: 1
 
 input:
   use: stdin
+
+decoder:
   split: true
-  codec:
-    use: json
+  use: json
   options:
 
 pipeline:
   options:
 
+encoder:
+  use: json
+  options:
+    pretty: true
+
 output:
   use: stdout
-  codec:
-    use: json
-    options:
-      pretty: true
   options:

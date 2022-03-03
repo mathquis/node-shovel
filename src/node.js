@@ -68,10 +68,15 @@ class NodeOperator extends Loadable {
       this.emit('error', err)
    }
 
-   in(message) {
+   async in(message) {
       this.log.debug('<- IN %s', message || '')
       this.counter.inc({...this.defaultLabels, kind: 'in'})
-      this.emit('in', message)
+      try {
+         await this.emit('in', message)
+      } catch (err) {
+         this.error(err)
+         this.reject(message)
+      }
    }
 
    out(message) {

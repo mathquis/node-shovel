@@ -2,7 +2,6 @@ const Colors = require('colors/safe')
 const Winston = require('winston')
 const { format, transports, addColors } = Winston
 const { combine, timestamp, label, printf, colorize, splat } = format
-const Config = require('./config')
 
 const colorizer = colorize()
 
@@ -67,7 +66,7 @@ const customFormat = format.combine(
 const consoleTransport = new transports.Console()
 
 const Logger = Winston.createLogger({
-   level: Config.get('log.level', 'info'),
+   level: 'info',
    format: customFormat,
    defaultMeta: {service: 'logger'},
    transports: [

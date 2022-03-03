@@ -5,7 +5,7 @@ const START_POSITION_BEGINNING = 'beginning'
 const START_POSITION_END = 'end'
 
 module.exports = node => {
-   let watcher
+   let reader
 
    node
       .registerConfig({
@@ -42,7 +42,6 @@ module.exports = node => {
                break
          }
 
-         let reader
          try {
             reader = File.createReadStream(filePath, {start: startPosition, encoding})
             reader

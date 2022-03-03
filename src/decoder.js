@@ -44,10 +44,15 @@ class Decoder extends Node {
       })
    }
 
-   in(message) {
+   async in(message) {
       this.log.debug('<- DECODE %s', message || '')
       this.counter.inc({...this.defaultLabels, kind: 'in'})
-      this.emit('decode', message)
+      try {
+         await this.emit('decode', message)
+      } catch (err) {
+         this.error(err)
+         this.reject(message)
+      }
    }
 
    out(message) {

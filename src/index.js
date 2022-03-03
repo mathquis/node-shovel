@@ -3,6 +3,8 @@ const Config         = require('./config')
 const Logger         = require('./logger')
 const PipelineConfig = require('./pipeline_config')
 
+Logger.setLogLevel( Config.get('log.level') )
+
 const log = Logger.child({category: 'shovel'})
 
 function loadPipeline(pipelinePath) {

@@ -39,10 +39,15 @@ class Encoder extends Node {
       })
    }
 
-   in(message) {
+   async in(message) {
       this.log.debug('-> ENCODE %s', message || '')
       this.counter.inc({...this.defaultLabels, kind: 'in'})
-      this.emit('encode', message)
+      try {
+         await this.emit('encode', message)
+      } catch (err) {
+         this.error(err)
+         this.reject(message)
+      }
    }
 }
 
