@@ -45,7 +45,6 @@ class Input extends Node {
       const message = new Message(payload, options)
       message.setContentType(options.contentType)
       message.setMetas(options.metas || [])
-      console.log(message)
       return message
    }
 
