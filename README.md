@@ -59,7 +59,8 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available inputs
 
 - amqp
-- http
+- http-request
+- http-server
 - mqtt
 - stdin
 - stream
@@ -72,6 +73,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - amqp
 - blackhole
 - elasticsearch
+- file
 - mqtt
 - stdout
 - tcp
@@ -81,6 +83,8 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 
 - csv
 - json
+- json5
+- multiline (WIP)
 - protobuf
 - syslog
 
