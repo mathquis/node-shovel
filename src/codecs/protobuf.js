@@ -1,4 +1,5 @@
-Protobuf = require('protobufjs')
+const Path		= require('path')
+const Protobuf	= require('protobufjs')
 
 const META_PROTOBUF_CLASS_NAME = 'protobuf_class_name'
 
@@ -18,6 +19,11 @@ module.exports = node => {
 				format: Array,
 				default: ''
 			},
+			root_path: {
+				doc: '',
+				format: String,
+				default: ''
+			},
 			content_type: {
 				doc: '',
 				format: String,
@@ -35,7 +41,19 @@ module.exports = node => {
 			}
 		})
 		.on('start', async () => {
-			root = await Protobuf.load(node.getConfig('proto_path'))
+			const rootPath = node.getConfig('root_path')
+			if ( !rootPath ) {
+				throw new Error('Configuration "root_path" must be defined')
+			}
+			const sep = rootPath.slice(-1) !== Path.sep ? Path.sep : ''
+			const protoPath = node.util.asArray(node.getConfig('proto_path'))
+			node.log.debug('Using root "%s"', rootPath)
+			root = new Protobuf.Root();
+			root.resolvePath = (origin, target) => {
+				return rootPath + sep + target;
+			}
+			await root.load(protoPath)
+			protoPath.forEach(file => node.log.info('Loaded proto file "%s" (root: %s)', file, rootPath))
 		})
 		.on('decode', async message => {
 			try {

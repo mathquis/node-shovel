@@ -213,12 +213,12 @@ module.exports = node => {
             }, reconnectAfterMs)
          })
 
-      channel.consume(queue_name, async data => {
+      channel.consume(queueName, async data => {
          const options = {
             contentType: data.properties.contentType,
             metas: [
-               [META_AMQP_FIELDS]: data.fields,
-               [META_AMQP_PROPERTIES]: data.properties
+               [META_AMQP_FIELDS, data.fields],
+               [META_AMQP_PROPERTIES, data.properties]
             ]
          }
          node.in(data.content, options)

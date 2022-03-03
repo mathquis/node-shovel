@@ -2,6 +2,7 @@ const File              = require('fs')
 const Path              = require('path')
 const Pupa              = require('pupa')
 const ContentTypeParser = require('whatwg-mimetype')
+const Glob              = require('glob')
 const Logger            = require('./logger')
 
 const log = Logger.child({category: 'utils'})
@@ -55,6 +56,25 @@ function translate(value, dictionary, defaultValue) {
    return dictionary[value] || defaultValue
 }
 
+function asArray(value) {
+   if ( !Array.isArray(value) ) {
+      return [value]
+   }
+   return value
+}
+
+async function glob(pattern) {
+   return new Promise((resolve, reject) => {
+      glob(pattern, (err, files) => {
+         if ( err ) {
+            reject(err)
+            return
+         }
+         resolve(files)
+      })
+   })
+}
+
 module.exports = {
-   loadFn, renderTemplate, parseContentType, translate
+   loadFn, renderTemplate, parseContentType, translate, asArray, glob
 }
