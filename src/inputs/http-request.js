@@ -98,6 +98,8 @@ module.exports = node => {
          }, null, true, timezone)
 
          job.start()
+
+         node.up()
       })
       .on('stop', async () => {
          if ( job ) {
@@ -132,7 +134,7 @@ module.exports = node => {
          agent
       }
 
-      node.log.info('Requesting endpoint [%s] %s', req.method, req.url)
+      node.log.info('Requesting endpoint (method: %s, url: %s)', req.method, req.url)
 
       const response = await Fetch(req.url, req)
 

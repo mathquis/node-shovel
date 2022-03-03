@@ -19,16 +19,16 @@ function loadFn(fn, paths = []) {
          ...paths.map(p => Path.resolve(p) + Path.sep + fn)
       ]
       const foundPath = searchPaths.filter(fnPath => !!fnPath).find(fnPath => {
-         log.debug('Checking function "%s" in path "%s"...', fn, fnPath)
+         log.debug('Checking function "%s" (path: %s)', fn, fnPath)
          return File.existsSync(fnPath) || File.existsSync(fnPath + '.js')
       })
       if ( !foundPath ) {
          throw new Error(`No valid path available for function ${fn}`)
       }
-      log.debug('Found function "%s" at path "%s"', fn, foundPath)
+      log.debug('Found function "%s" (path: %s)', fn, foundPath)
       return require(foundPath)
    } catch (err) {
-      throw new Error(`Error loading function "${fn}" (${err.stack})`)
+      throw new Error(`Error loading function "${fn}": ${err.stack}`)
    }
 }
 

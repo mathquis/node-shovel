@@ -66,7 +66,7 @@ class Message {
    }
 
    toString() {
-      return `[message uuid="${this._uuid}" id="${this.id || '<none>'}"]`
+      return `[message uuid="${this._uuid}"]`
    }
 }
 

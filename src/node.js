@@ -31,8 +31,11 @@ class NodeOperator extends Loadable {
    async start() {
       if ( this.isStarted ) return
       this.isStarted = true
-      await this.emit('start')
       this.log.info('Started')
+      const results = await this.emit('start')
+      if ( !results ) {
+         await this.up()
+      }
    }
 
    async stop() {
@@ -45,7 +48,7 @@ class NodeOperator extends Loadable {
 
    async up() {
       if ( this.isUp ) return
-      this.log.info('UP')
+      this.log.info('"^ Up"')
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
       await this.emit('up')
@@ -53,7 +56,7 @@ class NodeOperator extends Loadable {
 
    async down() {
       if ( !this.isUp ) return
-      this.log.warn('DOWN')
+      this.log.info('"v Down"')
       this.isUp = false
       this.status.set({...this.defaultLabels, kind: 'up'}, 0)
       await this.emit('down')

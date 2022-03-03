@@ -1,6 +1,7 @@
 const File               = require('fs')
 const Path               = require('path')
 const Cluster            = require('cluster')
+const Readline           = require('readline')
 const Prometheus         = require('prom-client')
 const YAML               = require('js-yaml')
 const Config             = require('./config')
@@ -16,21 +17,34 @@ module.exports = async (pipelineConfig) => {
 
       Prometheus.collectDefaultMetrics()
 
-      const {name, input, pipeline, output} = pipelineConfig
-
-      log.info('Running pipeline: %s', name)
+      log.info('Running pipeline "%s"', pipelineConfig.name)
 
       const worker = new Processor(pipelineConfig)
 
+      if ( process.platform === 'win32' ) {
+        var rl = Readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        rl.on('SIGINT', function () {
+          process.emit('SIGINT');
+        });
+      }
+
       process
-         .on('exit', async () => {
+         .on('asyncExit', async () => {
             await worker.stop()
+            process.exit()
+         })
+         .on('exit', () => {
+            worker.stop()
          })
          .on('SIGINT', async () => {
-            process.exit()
+            process.emit('asyncExit')
          })
          .on('SIGTERM', async () => {
-            process.exit()
+            process.emit('asyncExit')
          })
          .on('uncaughtException', async err => {
             log.error(err)

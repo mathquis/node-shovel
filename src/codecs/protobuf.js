@@ -54,6 +54,7 @@ module.exports = node => {
 			}
 			await root.load(protoPath)
 			protoPath.forEach(file => node.log.info('Loaded proto file "%s" (root: %s)', file, rootPath))
+			node.up()
 		})
 		.on('decode', async message => {
 			try {
@@ -84,7 +85,6 @@ module.exports = node => {
 					message.payload = messageClass.encode(message.content).finish()
 				}
 				message.setMeta(META_PROTOBUF_CLASS_NAME, className)
-				console.log(message)
 				node.out(message)
 			} catch (err) {
 				node.error(err)

@@ -35,7 +35,7 @@ class Loadable extends EventEmitter {
 
       this.executor = this.loader(this)
 
-      this.log.debug('%O', this.config.getProperties())
+      this.log.debug('%O', this.config.get('options'))
    }
 
    get util() {

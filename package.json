@@ -17,6 +17,7 @@
     "@koa/router": "^10.1.1",
     "amqplib": "^0.8.0",
     "cli-table": "^0.3.11",
+    "colors": "^1.4.0",
     "convict": "^6.2.1",
     "cron": "^1.8.2",
     "csv-parse": "^5.0.4",

@@ -13,7 +13,7 @@ module.exports = async (pipelineConfigs) => {
       const worker = Cluster.fork({
          PIPELINE_PATH: pipelineConfig.file
       })
-      log.info('Started worker %d for pipeline: %s', worker.id, pipelineConfig.name)
+      log.info('Started worker "%d" for pipeline "%s"', worker.id, pipelineConfig.name)
       workers.set(worker.id, pipelineConfig)
    }
 
@@ -23,7 +23,7 @@ module.exports = async (pipelineConfigs) => {
    const workers = new Map()
    pipelineConfigs.forEach(pipelineConfig => {
       const numWorkers = pipelineConfig.workers
-      log.info('Starting %d workers for pipeline: %s', numWorkers, pipelineConfig.name)
+      log.info('Starting workers for pipeline "%s" (workers: %d)', pipelineConfig.name, numWorkers)
       for ( let i = 0 ; i < numWorkers ; i++ ) {
          fork(pipelineConfig)
       }
@@ -40,7 +40,7 @@ module.exports = async (pipelineConfigs) => {
 
    Cluster.on('online', (worker) => {
       const pipelineConfig = workers.get(worker.id)
-      log.info('Worker %d is online for pipeline: %s', worker.id, pipelineConfig.name)
+      log.info('Worker %d is online for pipeline "%s"', worker.id, pipelineConfig.name)
       numOnlineWorkers++
       workerGauge.inc({kind: 'online'})
    })
@@ -48,13 +48,22 @@ module.exports = async (pipelineConfigs) => {
    Cluster.on('exit', (worker, code, signal) => {
       workerGauge.dec({kind: 'online'})
       numOnlineWorkers--
-      log.warn(`Worker ${worker.process.pid} died with code: ${code} and signal: ${signal}`)
+      if ( code ) {
+         log.warn(`Worker ${worker.process.pid} died (code: ${code}, signal: ${signal})`)
+      } else {
+         log.info(`Worker ${worker.process.pid} stopped`)
+      }
       if ( code === 1 ) {
          log.info('Starting a new worker...')
          const pipelineConfig = workers.get(worker.id)
          fork(pipelineConfig)
       }
       if ( numOnlineWorkers === 0 ) {
+         if ( !code ) {
+            log.info('Stopped')
+         } else {
+            log.warn('Died (code: %d)', code)
+         }
          process.exit(code)
       }
    })
@@ -84,6 +93,6 @@ module.exports = async (pipelineConfigs) => {
 
       app.listen( Config.get('metrics.port') )
 
-      log.info(`Prometheus metrics available on ${Config.get('metrics.route')} (port: ${Config.get('metrics.port')})`)
+      log.info(`Prometheus metrics available on "${Config.get('metrics.route')}" (port: ${Config.get('metrics.port')})`)
    }
 }

@@ -56,7 +56,7 @@ module.exports = node => {
          const router = new Router()
 
          router.all(route, async (ctx, next) => {
-            node.log.debug('Received HTTP "%s" request on "%s"', ctx.method, ctx.url)
+            node.log.debug('Received HTTP request (method: %s, url: %s)', ctx.method, ctx.url)
             const options = {
                contentType: ctx.get('content-type'),
                metas: [
@@ -74,7 +74,9 @@ module.exports = node => {
 
          server = app.listen(port)
 
-         node.log.info('Listening on %s:%d for %s', interface, port, route)
+         node.log.info('Listening (interface: %s, port: %d, route: %s)', interface, port, route)
+
+         node.up()
       })
       .on('stop', async () => {
          if ( server ) {

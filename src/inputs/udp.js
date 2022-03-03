@@ -30,7 +30,7 @@ module.exports = node => {
 
          server
             .on('listening', () => {
-               node.log.info('Listening on %s:%s (type: %s)', interface, port, type)
+               node.log.info('Listening (iterface: %s, port: %d, type: %s)', interface, port, type)
                node.up()
             })
             .on('error', err => {

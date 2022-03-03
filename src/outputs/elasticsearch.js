@@ -113,7 +113,7 @@ module.exports = node => {
 
          const st = (new Date()).getTime()
 
-         node.log.debug('Flushing %d messages...', messages.length)
+         node.log.debug('Flushing messages (num: %d)', messages.length)
 
          // Index the messages
          try {
@@ -138,7 +138,7 @@ module.exports = node => {
 
             const et = (new Date()).getTime()
 
-            node.log.info('Flushed %d messages in %fms', messages.length, et-st)
+            node.log.info('Flushed messages (num: %d, time: %fms)', messages.length, et-st)
 
             node.up()
 
@@ -202,7 +202,7 @@ module.exports = node => {
          }
       }
 
-      node.log.info('Using index: %s', node.getConfig('index_name'))
+      node.log.info('Using index "%s"', node.getConfig('index_name'))
 
       client = new Client(opts)
    }
@@ -256,7 +256,7 @@ module.exports = node => {
       flushTimeout = setTimeout(() => {
          flush()
       }, queueTimeoutMs)
-      node.log.debug('Next flush in %dms', queueTimeoutMs)
+      node.log.debug('Next flush in "%dms"', queueTimeoutMs)
    }
 
    function stopFlushTimeout() {

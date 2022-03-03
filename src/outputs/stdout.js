@@ -5,7 +5,4 @@ module.exports = node => {
          process.stdout.write(message.payload + '\n')
          node.ack(message)
       })
-      .on('start', async () => {
-         await node.up()
-      })
 }

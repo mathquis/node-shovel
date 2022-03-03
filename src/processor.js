@@ -69,6 +69,7 @@ class Processor {
    }
 
    async setupInput() {
+      this.log.debug('Setting up input')
       try {
          this.input = new Input(this.pipelineConfig)
       } catch (err) {
@@ -108,6 +109,7 @@ class Processor {
    }
 
    setupDecoder() {
+      this.log.debug('Setting up decoder')
       this.decoder = new Decoder(this.pipelineConfig)
       this.decoder
          .on('error', err => {
@@ -131,6 +133,7 @@ class Processor {
    }
 
    setupPipeline() {
+      this.log.debug('Setting up pipeline')
       this.pipeline = new Pipeline(this.pipelineConfig)
       this.pipeline
          .on('error', err => {
@@ -154,6 +157,7 @@ class Processor {
    }
 
    setupEncoder() {
+      this.log.debug('Setting up encoder')
       this.encoder = new Encoder(this.pipelineConfig)
       this.encoder
          .on('error', err => {
@@ -177,6 +181,7 @@ class Processor {
    }
 
    setupOutput() {
+      this.log.debug('Setting up output')
       this.output = new Output(this.pipelineConfig)
       this.output
          .on('error', err => {
