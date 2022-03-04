@@ -18,6 +18,11 @@ module.exports = node => {
 				format: Number,
 				default: 0
 			},
+			retry_timeout: {
+				doc: '',
+				format: Number,
+				default: 10000
+			},
 			batch_size: {
 				doc: '',
 				format: Number,
@@ -62,7 +67,10 @@ module.exports = node => {
 			removeFromInflight(message)
 		})
 		.on('nack', async (message) => {
-			removeFromInflight(message, true)
+			removeFromInflight(message, !drained)
+			if ( node.getConfig('flush_timeout') === 0 ) {
+				startFlushTimeout(node.getConfig('retry_timeout'))
+			}
 		})
 		.on('ignore', async (message) => {
 			removeFromInflight(message)
@@ -92,7 +100,7 @@ module.exports = node => {
 			node.pause()
 		}
 		if ( !flushTimeout ) {
-			startFlushTimeout()
+			startFlushTimeout(node.getConfig('flush_timeout'))
 		}
 		node.log.debug('Queued %s (queued: %d, inflight: %d)', message, queue.size, inflight.size)
 	}
@@ -150,14 +158,14 @@ module.exports = node => {
 		node.log.info('Flushed "%s" messages (queue: %d, inflight: %d)', i, queue.size, inflight.size)
 	}
 
-	function startFlushTimeout() {
-		if ( node.getConfig('flush_timeout') === 0 ) return
+	function startFlushTimeout(timeout) {
+		if ( timeout === 0 ) return
 		stopFlushTimeout()
 		flushTimeout = setTimeout(() => {
 			const {batch_size: batchSize} = node.getConfig()
 			flush(batchSize)
 			startFlushTimeout()
-		}, node.getConfig('flush_timeout'))
+		}, timeout)
 	}
 
 	function stopFlushTimeout() {

@@ -18,6 +18,10 @@ class Message {
       return this._uuid
    }
 
+   get retries() {
+      return this.getMeta('queue_retries') || 0
+   }
+
    clone(payload, content) {
       const message = new Message(payload)
       message.content = content || {}
