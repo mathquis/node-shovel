@@ -28,8 +28,26 @@ class Output extends Node {
       })
    }
 
-   out(message) {
+   async out(message) {
       throw new Error('Output node does not allow outbound message')
+   }
+
+   async pause() {
+      if ( !this.isUp ) return
+      if ( this.isPaused ) return
+      this.isPaused = true
+      this.log.info('| Paused')
+      await this.emit('pause')
+      this.counter.inc({...this.defaultLabels, kind: 'pause'})
+   }
+
+   async resume() {
+      if ( !this.isUp ) return
+      if ( !this.isPaused ) return
+      this.isPaused = false
+      this.log.info('> Resumed')
+      await this.emit('resume')
+      this.counter.inc({...this.defaultLabels, kind: 'resume'})
    }
 }
 

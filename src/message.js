@@ -1,11 +1,11 @@
+const CUID = require('cuid')
 const Utils = require('./utils')
 
-let messageId = 0
 const defaultContentType = Utils.parseContentType('application/octet-stream')
 
 class Message {
    constructor(payload) {
-      this._uuid       = ++messageId
+      this._uuid       = CUID()
       this.id          = this._uuid
       this.date        = new Date()
       this.contentType = defaultContentType
@@ -18,9 +18,9 @@ class Message {
       return this._uuid
    }
 
-   clone(content) {
-      const message = new Message(null)
-      message.content = content
+   clone(payload, content) {
+      const message = new Message(payload)
+      message.content = content || {}
       message.contentType = this.contentType
       message.metas = this.metas
       return message

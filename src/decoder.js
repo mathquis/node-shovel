@@ -55,14 +55,14 @@ class Decoder extends Node {
       }
    }
 
-   out(message) {
+   async out(message) {
       if ( !this.config.get('split') || !Array.isArray(message.content) ) {
-         super.out(message)
+         await super.out(message)
       } else {
          message.content.forEach(content => {
-            super.out(message.clone(content))
+            super.out(message.clone(null, content))
          })
-         this.ack(message)
+         await this.ack(message)
       }
    }
 }

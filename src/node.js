@@ -48,18 +48,18 @@ class NodeOperator extends Loadable {
 
    async up() {
       if ( this.isUp ) return
-      this.log.info('"^ Up"')
+      await this.emit('up')
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
-      await this.emit('up')
+      this.log.info('"^ Up"')
    }
 
    async down() {
       if ( !this.isUp ) return
-      this.log.info('"v Down"')
+      await this.emit('down')
       this.isUp = false
       this.status.set({...this.defaultLabels, kind: 'up'}, 0)
-      await this.emit('down')
+      this.log.info('"v Down"')
    }
 
    error(err) {
@@ -79,34 +79,34 @@ class NodeOperator extends Loadable {
       }
    }
 
-   out(message) {
+   async out(message) {
       this.log.debug('-> OUT %s', message || '')
+      await this.emit('out', message)
       this.counter.inc({...this.defaultLabels, kind: 'out'})
-      this.emit('out', message)
    }
 
-   ack(message) {
+   async ack(message) {
       this.log.debug('-+ ACK %s', message || '')
+      await this.emit('ack', message)
       this.counter.inc({...this.defaultLabels, kind: 'acked'})
-      this.emit('ack', message)
    }
 
-   nack(message) {
+   async nack(message) {
       this.log.debug('-X NACK %s', message || '')
+      await this.emit('nack', message)
       this.counter.inc({...this.defaultLabels, kind: 'nacked'})
-      this.emit('nack', message)
    }
 
-   ignore(message) {
+   async ignore(message) {
       this.log.debug('-- IGNORE %s', message || '')
+      await this.emit('ignore', message)
       this.counter.inc({...this.defaultLabels, kind: 'ignored'})
-      this.emit('ignore', message)
    }
 
-   reject(message) {
+   async reject(message) {
       this.log.debug('-! REJECT %s', message || '')
+      await this.emit('reject', message)
       this.counter.inc({...this.defaultLabels, kind: 'rejected'})
-      this.emit('reject', message)
    }
 }
 

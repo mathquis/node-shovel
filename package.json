@@ -22,6 +22,7 @@
     "cron": "^1.8.2",
     "csv-parse": "^5.0.4",
     "csv-stringify": "^6.0.5",
+    "cuid": "^2.1.8",
     "events-async": "^1.2.1",
     "glob": "^7.2.0",
     "js-yaml": "^4.1.0",

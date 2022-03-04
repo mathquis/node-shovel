@@ -45,7 +45,7 @@ module.exports = node => {
                   reject(err)
                   return
                }
-               resolve(records)
+               resolve(records.length === 1 ? records[0] : records)
             })
          })
          node.out(message)

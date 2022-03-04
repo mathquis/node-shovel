@@ -6,7 +6,9 @@ module.exports = node => {
 		})
 		.on('decode', message => {
 			if ( message.payload.trim().length === 0 ) {
-				const stackedMessage = message.clone(stack.join('\n'))
+				const stackedMessage = message.clone(null, {
+					multiline: stack.join('\n')
+				})
 				stack = []
 				node.out(stackedMessage)
 			} else {

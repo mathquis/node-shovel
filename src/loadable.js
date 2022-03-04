@@ -16,8 +16,6 @@ class Loadable extends EventEmitter {
          nullable: true
       }
 
-      this.setup()
-
       this.configure(this.options)
 
       this.setupLogger()
@@ -81,10 +79,6 @@ class Loadable extends EventEmitter {
       this.config = Convict(this.configSchema || {})
       this.config.load(config)
       this.config.validate({allowed: 'strict'})
-   }
-
-   setup() {
-
    }
 
    setupLogger() {

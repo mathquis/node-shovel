@@ -6,7 +6,7 @@ const START_POSITION_BEGINNING = 'beginning'
 const START_POSITION_END = 'end'
 
 module.exports = node => {
-   let watcher
+   let watcher, latestPosition
 
    node
       .registerConfig({
@@ -64,7 +64,10 @@ module.exports = node => {
             .on('error', err => {
                node.log.error(err.stack)
             })
-            .on('line', async line => {
+            .on('line', line => {
+               if ( !watcher.isWatching ) {
+
+               }
                node.log.debug('Received line: %s (length: %d)', line, line.length)
                node.in(line)
             })

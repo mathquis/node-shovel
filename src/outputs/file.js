@@ -2,7 +2,7 @@ const Path = require('path')
 const File = require('fs')
 
 module.exports = node => {
-   let writer
+   let writer, draining
 
    node
       .registerConfig({
@@ -29,14 +29,28 @@ module.exports = node => {
             return
          }
 
+         node.log.info('Writing to "%s"', filePath)
+
          node.up()
       })
       .on('stop', async () => {
          if ( writer ) {
-            writer.end()
+            await new Promise((resolve, reject) => {
+               writer.end('', 'binary', resolve)
+            })
          }
       })
       .on('in', async (message) => {
-         writer.write(message.payload)
+         const result = writer.write(message.payload, () => {
+            node.ack(message)
+         })
+         if ( !result && !draining ) {
+            draining = true
+            writer.once('drain', () => {
+               node.resume()
+            })
+            node.nack(message)
+            node.pause()
+         }
       })
 }

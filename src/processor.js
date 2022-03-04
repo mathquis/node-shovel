@@ -5,6 +5,7 @@ const Logger     = require('./logger')
 const Utils      = require('./utils')
 const Input      = require('./input')
 const Decoder    = require('./decoder')
+const Queue      = require('./queue')
 const Pipeline   = require('./pipeline')
 const Encoder    = require('./encoder')
 const Output     = require('./output')
@@ -33,6 +34,7 @@ class Processor {
 
       this.setupInput()
       this.setupDecoder()
+      this.setupQueue()
       this.setupPipeline()
       this.setupEncoder()
       this.setupOutput()
@@ -45,6 +47,7 @@ class Processor {
    help() {
       return {
          input: this.input.help(),
+         queue: this.queue.help(),
          decoder: this.decoder.help(),
          pipeline: this.pipeline.help(),
          encoder: this.encoder.help(),
@@ -57,11 +60,13 @@ class Processor {
       await this.encoder.start()
       await this.pipeline.start()
       await this.decoder.start()
+      await this.queue.start()
       await this.input.start()
    }
 
    async stop() {
       await this.input.stop()
+      await this.queue.stop()
       await this.decoder.stop()
       await this.pipeline.stop()
       await this.encoder.stop()
@@ -116,7 +121,7 @@ class Processor {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
          .on('out', message => {
-            this.pipeline.in(message)
+            this.queue.in(message)
          })
          .on('ack', message => {
             this.input.ack(message)
@@ -132,6 +137,27 @@ class Processor {
          })
    }
 
+   setupQueue() {
+      this.log.debug('Setting up queue')
+      this.queue = new Queue(this.pipelineConfig)
+      this.queue
+         .on('error', err => {
+            this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
+         })
+         .on('queued', message => {
+            this.decoder.ack(message)
+         })
+         .on('out', message => {
+            this.pipeline.in(message)
+         })
+         .on('pause', () => {
+            this.input.pause()
+         })
+         .on('resume', () => {
+            this.input.resume()
+         })
+   }
+
    setupPipeline() {
       this.log.debug('Setting up pipeline')
       this.pipeline = new Pipeline(this.pipelineConfig)
@@ -143,16 +169,16 @@ class Processor {
             this.encoder.in(message)
          })
          .on('ack', message => {
-            this.decoder.ack(message)
+            this.queue.ack(message)
          })
          .on('nack', message => {
-            this.decoder.nack(message)
+            this.queue.nack(message)
          })
          .on('ignore', message => {
-            this.decoder.ignore(message)
+            this.queue.ignore(message)
          })
          .on('reject', message => {
-            this.decoder.reject(message)
+            this.queue.reject(message)
          })
    }
 
@@ -198,6 +224,12 @@ class Processor {
          })
          .on('reject', message => {
             this.encoder.reject(message)
+         })
+         .on('pause', () => {
+            this.queue.pause()
+         })
+         .on('resume', () => {
+            this.queue.resume()
          })
    }
 }

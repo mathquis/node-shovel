@@ -8,7 +8,7 @@ module.exports = node => {
 		.on('decode', async (message) => {
 		    const content = Parser(message.payload.toString())
 		    const {message: text, ...properties} = content
-		    message.content = text
+		    message.content = {text}
 		    message.setContentType('text/plain')
 		    message.setMeta(SYSLOG_PROPERTIES, properties)
 			node.out(message)

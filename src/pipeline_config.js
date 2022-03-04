@@ -65,6 +65,10 @@ class PipelineConfig {
       return this.config.decoder || {}
    }
 
+   get queue() {
+      return this.config.queue || {}
+   }
+
    get pipeline() {
       return this.config.pipeline || {}
    }
