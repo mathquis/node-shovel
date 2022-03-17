@@ -1,11 +1,12 @@
-const File             = require('fs')
-const Path             = require('path')
-const {Client, errors} = require('@elastic/elasticsearch')
+import File from 'fs'
+import Path from 'path'
+import {Client, errors} from '@elastic/elasticsearch'
 
-const META_INDEX_TEMPLATE = 'elasticsearch_index'
+const META_INDEX_TEMPLATE = 'output-elasticsearch-index-name'
+const META_ERROR          = 'output-elasticsearch-error'
 
-module.exports = node => {
-   let client, flushTimeout, templateCreated
+export default node => {
+   let client, templateCreated, flushTimeout
 
    let queue = []
 
@@ -52,20 +53,20 @@ module.exports = node => {
             format: String,
             default: 'message',
          },
-         queue_size: {
-            doc: '',
-            format: Number,
-            default: 1000
-         },
-         queue_timeout: {
-            doc: '',
-            format: Number,
-            default: 10000
-         },
          template: {
             doc: '',
             format: String,
             default: '',
+         },
+         batch_size: {
+            doc: '',
+            format: Number,
+            default: 1000
+         },
+         flush_timeout: {
+            doc: '',
+            format: 'duration',
+            default: '5s'
          }
       })
       .on('start', async () => {
@@ -75,105 +76,128 @@ module.exports = node => {
          } catch (err) {
             node.log.warn(err.message)
          }
-         startFlushTimeout()
          await node.up()
       })
-      .on('stop', async () => {
+      .on('down', async () => {
+         await node.pause()
+      })
+      .on('up', async () => {
+         await node.resume()
+         startFlushTimeout()
+      })
+      .on('pause', async () => {
          stopFlushTimeout()
-         await flush()
+      })
+      .on('resume', async () => {
+         startFlushTimeout()
       })
       .on('in', async (message) => {
+         const {
+            batch_size: batchSize
+         } = node.getConfig()
          queue.push(message)
-         if ( queue.length >= node.getConfig('queue_size') ) {
-            await flush()
+         if ( queue.length === batchSize ) {
+            flush()
          }
-         startFlushTimeout()
       })
 
    async function flush() {
       stopFlushTimeout()
 
-      try {
-         await setupTemplate()
-      } catch (err) {
-         node.log.warn(err.message)
+      const {
+         batch_size: batchSize
+      } = node.getConfig()
+
+      const batch = queue.splice(0, batchSize)
+
+      if ( batch.length === 0 ) {
          startFlushTimeout()
          return
       }
 
-      // Get the queue messages
-      const messages = queue
+      try {
+         await setupTemplate()
+      } catch (err) {
+         node.log.warn(err.message)
+         batch.forEach(message => {
+            node.nack(message)
+         })
+         startFlushTimeout()
+         return
+      }
 
-      // Empty the queue so new messages can start coming in
-      queue = []
+      node.log.debug('Flushing (messages: %d)', batch.length)
 
       const errorIds = new Map()
 
-      if ( messages.length > 0 ) {
+      const st = (new Date()).getTime()
 
-         const st = (new Date()).getTime()
+      const {index_name: indexName} = node.getConfig()
 
-         node.log.debug('Flushing messages (num: %d)', messages.length)
+      try {
+         const body = []
 
-         // Index the messages
-         try {
-            const data = {
-               _source: ['uuid'],
-               body: messages.flatMap(message => {
-                  const indexTemplate = message.getMeta(META_INDEX_TEMPLATE) || node.getConfig('index_name')
-                  return [
-                     {
-                        index: {
-                           _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
-                           _id: message.id
-                        }
-                     },
-                     message.content
-                  ]
-               })
-            }
-            const response = await client.bulk(data, {
-               filterPath: 'items.*.error,items.*._id'
+         batch.forEach(message => {
+            const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
+            body.push({
+               index: {
+                  _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+                  _id: message.uuid
+               }
             })
+            body.push(message.content)
+         })
 
-            const et = (new Date()).getTime()
+         const data = {
+            _source: ['uuid'],
+            body
+         }
+         const response = await client.bulk(data, {
+            filterPath: 'items.*.error,items.*._id'
+         })
 
-            node.log.info('Flushed messages (num: %d, time: %fms)', messages.length, et-st)
+         const et = (new Date()).getTime()
 
-            node.up()
+         node.log.info('Flushed (messages: %d, time: %fms)', batch.length, et-st)
 
-            // Get messages in error
-            if ( response.errors ) {
-               response.items.forEach(item => {
-                  errorIds.set(item._id, true)
-               })
-            }
+         node.up()
 
-         } catch (err) {
-            node.error(err)
-
-            if ( err instanceof errors.ConnectionError ) {
-               node.down()
-            } else if ( err instanceof errors.NoLivingConnectionsError ) {
-               node.down()
-            }
-
-            messages.forEach(message => {
-               errorIds.set(message.id, true)
+         // Get messages in error
+         if ( response.errors ) {
+            response.items.forEach(({index: result}) => {
+               if ( result.status >= 400 ) {
+                  node.log.warn(result.error.reason)
+                  errorIds.set(result._id, result.error.reason)
+               }
             })
          }
-      } else {
-         node.log.debug('Nothing to flush')
+
+      } catch (err) {
+         node.error(err)
+
+         if ( err instanceof errors.ConnectionError ) {
+            node.down()
+         } else if ( err instanceof errors.NoLivingConnectionsError ) {
+            node.down()
+         }
+
+         batch.forEach(message => {
+            errorIds.set(message.id, true)
+         })
       }
 
       // Notify messages processing
-      messages.forEach(message => {
-         if ( errorIds.get(message.id) ) {
-            node.nack(message)
+      batch.forEach(message => {
+         const err = errorIds.get(message.uuid)
+         if ( err ) {
+            message.setHeader(META_ERROR, err)
+            node.reject(message)
          } else {
             node.ack(message)
          }
       })
+
+      startFlushTimeout()
    }
 
    function setupClient() {
@@ -218,7 +242,7 @@ module.exports = node => {
          try {
             tpl = node.util.loadFn(template, [node.pipelineConfig.path])
             if ( typeof tpl === 'function' ) {
-               tpl = tpl(node.getConfig())
+               tpl = tpl(node)
             }
          } catch (err) {
             throw new Error(`Template "${template}" not found: ${err.message}`)
@@ -250,13 +274,13 @@ module.exports = node => {
    }
 
    function startFlushTimeout() {
-      if ( flushTimeout ) return
       stopFlushTimeout()
-      const queueTimeoutMs = node.getConfig('queue_timeout')
+      const {
+         flush_timeout: timeout
+      } = node.getConfig()
       flushTimeout = setTimeout(() => {
          flush()
-      }, queueTimeoutMs)
-      node.log.debug('Next flush in "%dms"', queueTimeoutMs)
+      }, timeout)
    }
 
    function stopFlushTimeout() {

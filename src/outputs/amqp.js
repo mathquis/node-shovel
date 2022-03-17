@@ -1,14 +1,12 @@
-const AMQP       = require('amqplib')
+import AMQP from 'amqplib'
 
-const META_AMQP_PUBLISH_OPTIONS = 'output_amqp_publish_options'
-const META_AMQP_ROUTING_KEY     = 'output_amqp_routing_key'
+const META_AMQP_PUBLISH_OPTIONS = 'output-amqp-publish-options'
+const META_AMQP_ROUTING_KEY     = 'output-amqp-routing-key'
 
 let consumers = 0
 
-module.exports = node => {
+export default node => {
    let connection, channel, reconnectTimeout
-
-   let queue = []
 
    consumers++
    const consumerTag = 'shovel-amqp-output-' + consumers
@@ -51,10 +49,15 @@ module.exports = node => {
             format: String,
             default: ''
          },
+         heartbeat: {
+            doc: '',
+            format: 'duration',
+            default: '60s'
+         },
          reconnect_after_ms: {
             doc: '',
-            format: Number,
-            default: 5000
+            format: 'duration',
+            default: '5s'
          }
       })
       .on('start', async () => {
@@ -65,38 +68,23 @@ module.exports = node => {
             await channel.close()
          }
       })
-      .on('up', () => {
-         const q = queue || []
-         queue = []
-         q.forEach(message => {
-            node.in(message)
-         })
-      })
       .on('in', async (message) => {
-         try {
-            if ( channel ) {
-               const {
-                  exchange_name: exchangeName,
-                  routing_key: routingKey
-               } = node.getConfig()
-
-               const routingKeyTemplate = message.getMeta(META_AMQP_ROUTING_KEY) || routingKey
-               const finalRoutingKey = node.util.renderTemplate(routingKeyTemplate, message)
-               node.log.debug('Publishing message with routing key "%s"', finalRoutingKey)
-
-               const content = await node.encode(message)
-               if (!content) return
-
-               await channel.publish(exchange_name, finalRoutingKey, Buffer.from(content), message.getMeta(META_AMQP_PUBLISH_OPTIONS) || {})
-
-               node.ack(message)
-            } else {
-               queue.push(message)
-            }
-         } catch (err) {
+         if ( !channel || !node.isUp || node.isPaused ) {
             node.nack(message)
-            node.error(err)
+            return
          }
+         const {
+            exchange_name: exchangeName,
+            routing_key: routingKey
+         } = node.getConfig()
+
+         const routingKeyTemplate = message.getHeader(META_AMQP_ROUTING_KEY) || routingKey
+         const finalRoutingKey = node.util.renderTemplate(routingKeyTemplate, message)
+         node.log.debug('Publishing message with routing key "%s"', finalRoutingKey)
+
+         await channel.publish(exchangeName, finalRoutingKey, Buffer.from(message.payload), message.getHeader(META_AMQP_PUBLISH_OPTIONS) || {})
+
+         node.ack(message)
       })
 
    async function connect() {
@@ -106,14 +94,15 @@ module.exports = node => {
          clearReconnectTimeout()
 
          // Connect to AMQP
-         const {host: hostname, port, vhost, username, password} = node.getConfig()
+         const {host: hostname, port, vhost, username, password, heartbeat} = node.getConfig()
 
          connection = await AMQP.connect({
             hostname,
             port,
             vhost,
             username,
-            password
+            password,
+            heartbeat
          })
 
          connection
@@ -139,8 +128,14 @@ module.exports = node => {
       }
       const reconnectAfterMs = node.getConfig('reconnect_after_ms')
       node.log.debug('Reconnecting in %d...', reconnectAfterMs)
-      connection = null
-      channel = null
+      if ( connection ) {
+         connection.removeAllListeners()
+         connection = null
+      }
+      if ( channel ) {
+         channel.removeAllListeners()
+         channel = null
+      }
       node.down()
       clearReconnectTimeout()
       reconnectTimeout = setTimeout(() => {
@@ -157,11 +152,9 @@ module.exports = node => {
    async function onConnect() {
       node.log.debug('Connected')
 
-      const {queue_size, reconnect_after_ms} = node.getConfig()
+      const {reconnect_after_ms: reconnectAfterMs} = node.getConfig()
 
       channel = await connection.createChannel()
-
-      await channel.prefetch(queue_size)
 
       channel
          .on('close', () => {
@@ -173,7 +166,7 @@ module.exports = node => {
             channel = null
             setTimeout(() => {
                onConnect()
-            }, reconnect_after_ms)
+            }, reconnectAfterMs)
          })
 
       node.up()

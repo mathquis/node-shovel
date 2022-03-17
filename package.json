@@ -4,19 +4,20 @@
   "description": "Shovel messages from here to there",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "shovel": "src/cli.js"
+    "shovel": "./src/cli.js"
   },
+  "type": "module",
   "author": "Mathieu \"Fastjack\" Quisefit",
   "license": "ISC",
   "dependencies": {
-    "@elastic/elasticsearch": "^7.17.0",
+    "@elastic/elasticsearch": "^8.1.0",
     "@koa/router": "^10.1.1",
     "amqplib": "^0.8.0",
     "cli-table": "^0.3.11",
+    "clone": "^2.1.2",
     "colors": "^1.4.0",
     "convict": "^6.2.1",
     "cron": "^1.8.2",
@@ -26,17 +27,24 @@
     "events-async": "^1.2.1",
     "glob": "^7.2.0",
     "js-yaml": "^4.1.0",
+    "json-colorizer": "^2.2.2",
     "json5": "^2.2.0",
     "koa": "^2.13.4",
+    "koa-basic-auth": "^4.0.0",
     "koa-bodyparser": "^4.3.0",
-    "mqtt": "^4.3.5",
-    "node-fetch": "^2.6.7",
+    "level": "^7.0.1",
+    "level-mem": "^6.0.1",
+    "luxon": "^2.3.1",
+    "mqtt": "^4.3.7",
+    "msgpackr": "^1.5.5",
+    "node-fetch": "^3.2.3",
     "nsyslog-parser": "^0.9.6",
+    "parse-duration": "^1.0.2",
     "prom-client": "^14.0.1",
     "protobufjs": "^6.11.2",
-    "pupa": "^2.1.1",
+    "pupa": "^3.1.0",
     "tail": "^2.2.4",
     "whatwg-mimetype": "^3.0.0",
-    "winston": "^3.3.3"
+    "winston": "^3.6.0"
   }
 }

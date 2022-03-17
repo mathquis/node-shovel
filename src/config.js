@@ -1,9 +1,10 @@
-const Path       = require('path')
-const OS         = require('os')
-const Convict    = require('convict')
-const YAML       = require('js-yaml')
-const JSON5      = require('json5')
-const Prometheus = require('prom-client')
+import Path from 'path'
+import OS from 'os'
+import Convict from 'convict'
+import YAML from 'js-yaml'
+import JSON5 from 'json5'
+import Prometheus from 'prom-client'
+import Utils from './utils.js'
 
 Convict.addParser([
    { extension: 'json', parse: JSON.parse },
@@ -26,6 +27,27 @@ Convict.addFormat({
    },
    coerce: function(value) {
       return value || {}
+   }
+})
+
+Convict.addFormat({
+   name: 'duration',
+   validate: function(value, schema) {
+      if ( null === value ) {
+         if ( schema.nullable ) {
+            return true
+         } else {
+            throw new Error('must not be null')
+         }
+      }
+      const type = typeof value
+      return ( type === 'string' || type === 'number' )
+   },
+   coerce: function(value) {
+      if ( null === value ) {
+         return null
+      }
+      return Utils.Duration.parse(value)
    }
 })
 
@@ -58,10 +80,11 @@ const config = Convict({
       }
    },
    workers: {
-      doc: '',
-      default: OS.cpus().length,
-      arg: 'workers',
-      env: 'SERVICE_WORKERS'
+      stop_timeout: {
+         doc: '',
+         format: 'duration',
+         default: '60s'
+      }
    },
    metrics: {
       enabled: {
@@ -105,4 +128,4 @@ Prometheus.register.setDefaultLabels({
    ...defaultLabels
 })
 
-module.exports = config
+export default config

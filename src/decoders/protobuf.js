@@ -1,9 +1,9 @@
-const Path		= require('path')
-const Protobuf	= require('protobufjs')
+import Path from 'path'
+import Protobuf from 'protobufjs'
 
-const META_PROTOBUF_CLASS_NAME = 'protobuf_class_name'
+const META_PROTOBUF_CLASS_NAME = 'decoder-protobuf-class-name'
 
-module.exports = node => {
+export default node => {
 	let root
 	let remainder = Buffer.alloc(0)
 
@@ -56,39 +56,11 @@ module.exports = node => {
 			protoPath.forEach(file => node.log.info('Loaded proto file "%s" (root: %s)', file, rootPath))
 			node.up()
 		})
-		.on('decode', async message => {
-			try {
-				if ( node.getConfig('delimited') ) {
-					parseDelimitedPayload(message)
-					node.out(message)
-				} else {
-					parsePayload(message)
-					node.out(message)
-				}
-			} catch (err) {
-				node.error(err)
-				node.reject(message)
-			}
-		})
-		.on('encode', async (message) => {
-			try {
-				const className = message.getMeta(META_PROTOBUF_CLASS_NAME) || getClassName(message)
-				const messageClass = getMessageClass(className)
-				if ( node.getConfig('delimited') ) {
-					let contents = message.content
-					if ( !Array.isArray(content) ) {
-						contents = [content]
-					}
-					message.payload = Buffer.concat(contents.map(content => messageClass.encodeDelimited(content).finish()))
-					node.out(message)
-				} else {
-					message.payload = messageClass.encode(message.content).finish()
-				}
-				message.setMeta(META_PROTOBUF_CLASS_NAME, className)
-				node.out(message)
-			} catch (err) {
-				node.error(err)
-				node.reject(message)
+		.on('in', async (message) => {
+			if ( node.getConfig('delimited') ) {
+				parseDelimitedPayload(message)
+			} else {
+				parsePayload(message)
 			}
 		})
 
@@ -112,7 +84,7 @@ module.exports = node => {
 		const className = getClassName(message)
 		const messageClass = getMessageClass(className)
 		let msg
-		let payload = message.payload
+		let payload = message.source
 		const contentType = node.getConfig('content_type') || message.contentType.mimeType
 		switch ( contentType ) {
 			case 'text/json':
@@ -124,32 +96,40 @@ module.exports = node => {
 				msg = messageClass.decode(payload)
 				break
 		}
-		message.setMeta(META_PROTOBUF_CLASS_NAME, className)
-		message.content = messageClass.toObject(msg)
+		message.decode(messageClass.toObject(msg))
+		message.setHeader(META_PROTOBUF_CLASS_NAME, className)
+		node.out(message)
 	}
 
 	function parseDelimitedPayload(message) {
 		const className = getClassName(message)
 		const messageClass = getMessageClass(className)
 		const contents = []
-		const buf = Buffer.concat([remainder, message.payload])
+		remainder = Buffer.concat([remainder, message.source])
 		let lastPos = 0
-		const reader = Protobuf.Reader.create(buf)
+		const reader = Protobuf.Reader.create(remainder)
 		try {
 			while ( reader.pos < reader.len ) {
 				lastPos = reader.pos
 				const proto = messageClass.decodeDelimited(reader)
 				const content = messageClass.toObject(proto)
-				contents.push(content)
+				const newMessage = message.clone()
+				newMessage
+					.decode(content)
+					.setHeader(META_PROTOBUF_CLASS_NAME, className)
+				node.out(newMessage)
+				node.ack(message)
 			}
 		} catch (err) {
-			if ( node.getConfig('reset') ) {
-				remainder = Buffer.alloc(0)
+			if ( err instanceof RangeError ) {
+				if ( node.getConfig('reset') ) {
+					remainder = Buffer.alloc(0)
+				} else {
+					remainder = remainder.slice(lastPos)
+				}
 			} else {
-				remainder = buf.slice(lastPos)
+				node.error(err)
 			}
 		}
-		message.setMeta(META_PROTOBUF_CLASS_NAME, className)
-		message.content = contents
 	}
 }

@@ -1,7 +1,9 @@
-const Cluster        = require('cluster')
-const Config         = require('./config')
-const Logger         = require('./logger')
-const PipelineConfig = require('./pipeline_config')
+import Cluster from 'cluster'
+import Config from './config.js'
+import Logger from './logger.js'
+import PipelineConfig from './pipeline_config.js'
+import Master from './master.js'
+import Worker from './worker.js'
 
 Logger.setLogLevel( Config.get('log.level') )
 
@@ -15,6 +17,7 @@ function loadPipeline(pipelinePath) {
    const pipelineConfig = new PipelineConfig(pipelinePath)
    try {
       pipelineConfig.load()
+      log.debug('Loaded pipeline configuration from "%s"', pipelineConfig.file)
       return pipelineConfig
    } catch (err) {
       log.error(err)
@@ -24,10 +27,14 @@ function loadPipeline(pipelinePath) {
 
 if (Cluster.isMaster) {
    const pipelinePaths = Config.get('pipeline')
-   const pipelineConfigs = pipelinePaths.map(loadPipeline)
-   require('./master')(pipelineConfigs)
+   const pipelineConfigs = pipelinePaths.map(pipelinePath => {
+      const pipelineConfig = loadPipeline(pipelinePath)
+      log.info('Loaded pipeline configuration from "%s"', pipelineConfig.file)
+      return pipelineConfig
+   })
+   Master(pipelineConfigs)
 } else {
    const pipelinePath = process.env.PIPELINE_PATH
    const pipelineConfig = loadPipeline(pipelinePath)
-   require('./worker')(pipelineConfig)
+   Worker(pipelineConfig)
 }

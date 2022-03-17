@@ -1,16 +1,17 @@
-const Path      = require('path')
-const File      = require('fs')
-const HTTP      = require('http')
-const HTTPS     = require('https')
-const Fetch     = require('node-fetch')
-const {CronJob} = require('cron')
+import Path from 'path'
+import File from 'fs'
+import HTTP from 'http'
+import HTTPS from 'https'
+import Fetch from 'node-fetch'
+import { CronJob } from 'cron'
 
-const META_HTTP_STATUS = 'input_http_status'
-const META_HTTP_HEADERS = 'input_http_headers'
+const META_HTTP_STATUS = 'input-http-request-status'
+const META_HTTP_HEADERS = 'input-http-request-headers'
 
-module.exports = node => {
+export default node => {
 
-   let ca, agent, job
+   let ca, agent, job, requestTimeout
+   let beforeFn = req => req
 
    node
       .registerConfig({
@@ -51,23 +52,21 @@ module.exports = node => {
             format: String,
             default: ''
          },
-         prepare: {
-            use: {
-               doc: '',
-               format: String,
-               default: ''
-            },
-            options: {
-               doc: '',
-               format: 'options',
-               default: {},
-               nullable: true
-            }
+         before: {
+            doc: '',
+            format: String,
+            default: ''
          },
          schedule: {
             doc: '',
             format: String,
             default: '* * * * * *'
+         },
+         interval: {
+            doc: '',
+            format: 'duration',
+            default: null,
+            nullable: true
          },
          timezone: {
             doc: '',
@@ -76,7 +75,7 @@ module.exports = node => {
          }
       })
       .on('start', async () => {
-         const {ca_file, url, keep_alive, schedule, timezone} = node.getConfig()
+         const {ca_file, url, keep_alive, schedule, timezone, before} = node.getConfig()
 
          if ( ca_file ) {
             ca = loadIfExists(ca_file)
@@ -93,11 +92,12 @@ module.exports = node => {
             })
          }
 
-         const job = new CronJob(schedule, () => {
-            request()
-         }, null, true, timezone)
-
-         job.start()
+         if ( before ) {
+            beforeFn = node.util.loadFn(before)
+            if ( typeof beforeFn !== 'function' ) {
+               throw new Error('Configuration "before" must export a function')
+            }
+         }
 
          node.up()
       })
@@ -105,6 +105,15 @@ module.exports = node => {
          if ( job ) {
             job.stop()
          }
+      })
+      .on('up', async () => {
+         startRequestTimeout()
+      })
+      .on('pause', async () => {
+         stopRequestTimeout()
+      })
+      .on('resume', async () => {
+         startRequestTimeout()
       })
 
    function loadIfExists(file) {
@@ -126,26 +135,58 @@ module.exports = node => {
          headers['Authorization'] = `Basic ${authorization.toString('base64')}`
       }
 
-      const req = {
+      const req = beforeFn({
          url,
          method,
          body,
          headers,
          agent
-      }
+      })
 
       node.log.info('Requesting endpoint (method: %s, url: %s)', req.method, req.url)
 
       const response = await Fetch(req.url, req)
 
-      const options = {
-         contentType: response.headers.contentType,
-         metas: [
-            [META_HTTP_STATUS, response.status],
-            [META_HTTP_HEADERS, response.headers],
-         ]
+      const message = node.createMessage()
+
+      message.source = await response.text()
+
+      message
+         .setContentType(response.headers.contentType)
+         .setHeaders({
+            [META_HTTP_STATUS]: response.status,
+            [META_HTTP_HEADERS]: response.headers
+         })
+
+      node.in(message)
+   }
+
+   function startRequestTimeout() {
+      const {interval, schedule, timezone} = node.getConfig()
+
+      stopRequestTimeout()
+
+      if ( interval ) {
+         requestTimeout = setTimeout(async () => {
+            await request()
+            startRequestTimeout()
+         }, interval)
+      } else {
+         if ( job ) {
+            return
+         }
+
+         job = new CronJob(schedule, () => {
+            request()
+         }, null, true, timezone)
+
+         job.start()
       }
-      const payload = await response.text()
-      node.in(payload, options)
+   }
+
+   function stopRequestTimeout() {
+      if ( !requestTimeout ) return
+      clearTimeout(requestTimeout)
+      requestTimeout = null
    }
 }

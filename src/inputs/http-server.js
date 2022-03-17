@@ -1,23 +1,24 @@
-const Path       = require('path')
-const File       = require('fs')
-const Koa        = require('koa')
-const Router     = require('@koa/router')
-const BodyParser = require('koa-bodyparser')
+import Path from 'path'
+import File from 'fs'
+import Koa from 'koa'
+import Router from '@koa/router'
+import BodyParser from 'koa-bodyparser'
 
-const META_HTTP_CONTEXT = 'input_http_context'
-const META_HTTP_NEXT = 'input_http_next'
+const META_HTTP_CONTEXT = 'input-http-server-context'
 
-module.exports = node => {
+export default node => {
 
-   let ca, app, server
+   let ca, app, server, listening
+
+   const resolvers = new Map()
 
    node
       .registerConfig({
-         interface: {
-            doc: '',
-            format: String,
-            default: 'localhost'
-         },
+         // host: {
+         //    doc: '',
+         //    format: String,
+         //    default: 'localhost'
+         // },
          port: {
             doc: '',
             format: 'port',
@@ -46,7 +47,14 @@ module.exports = node => {
          }
       })
       .on('start', async () => {
-         const {ca_file, interface, port, route} = node.getConfig()
+
+         const {
+            ca_file,
+            port,
+            route,
+            username: user,
+            password: pass
+         } = node.getConfig()
 
          if ( ca_file ) {
             ca = loadIfExists(ca_file)
@@ -55,17 +63,40 @@ module.exports = node => {
          const app = new Koa()
          const router = new Router()
 
-         router.all(route, async (ctx, next) => {
-            node.log.debug('Received HTTP request (method: %s, url: %s)', ctx.method, ctx.url)
-            const options = {
-               contentType: ctx.get('content-type'),
-               metas: [
-                  [META_HTTP_CONTEXT, ctx],
-                  [META_HTTP_NEXT, next]
-               ]
-            }
-            node.in(ctx.request.body, options)
-         })
+         router
+            .all(route, async (ctx, next) => {
+               if ( !listening ) {
+                  ctx.throw(403, 'Not listening')
+                  return
+               }
+
+               const status = await new Promise((resolve, reject) => {
+                  node.log.debug('Received HTTP request (method: %s, url: %s)', ctx.method, ctx.url)
+
+                  const message = node.createMessage()
+
+                  message.source = ctx.request.body
+
+                  message
+                     .setContentType(ctx.get('content-type'))
+                     .setHeaders({
+                        [META_HTTP_CONTEXT]: ctx
+                     })
+
+                  resolvers.set(message.uuid, resolve)
+
+                  node.in(message)
+               })
+
+               ctx.status = status
+
+               await next()
+            })
+
+         if ( user ) {
+            app
+               .use(auth({user, pass}))
+         }
 
          app
             .use(BodyParser())
@@ -74,7 +105,7 @@ module.exports = node => {
 
          server = app.listen(port)
 
-         node.log.info('Listening (interface: %s, port: %d, route: %s)', interface, port, route)
+         node.log.info('Listening (interface: %s, port: %d, route: %s)', port, route)
 
          node.up()
       })
@@ -82,6 +113,18 @@ module.exports = node => {
          if ( server ) {
             server.close()
          }
+      })
+      .on('up', async () => {
+         listening = true
+      })
+      .on('down', async () => {
+         listening = false
+      })
+      .on('pause', async () => {
+         listening = false
+      })
+      .on('resume', async () => {
+         listening = true
       })
       .on('ack', async (message) => {
          respond(200, message)
@@ -104,14 +147,12 @@ module.exports = node => {
    }
 
    async function respond(status, message) {
-      const next = message.getMeta(META_HTTP_NEXT)
-      if ( typeof next === 'function' ) {
-         const ctx = message.getMeta(META_HTTP_CONTEXT)
-         if ( ctx ) {
-            ctx.response.status = status
-         }
-         await next()
-         node.log.debug('Response %d: %s', status, message)
+      const resolve = resolvers.get(message.uuid)
+      if ( resolve ) {
+         resolvers.delete(message.uuid)
+         resolve(status)
+      } else {
+         node.log.warning('Unknown message')
       }
    }
 }

@@ -1,14 +1,14 @@
-const Net       = require('net')
-const Readline  = require('readline')
+import Net from 'net'
+import Readline from 'readline'
 
-const META_TCP_PROPERTIES = 'input_tcp_properties'
+const META_TCP_PROPERTIES = 'input-tcp-properties'
 
-module.exports = node => {
-   let server
+export default node => {
+   let server, listening
 
    node
       .registerConfig({
-         interface: {
+         host: {
             doc: '',
             format: String,
             default: ''
@@ -48,7 +48,7 @@ module.exports = node => {
 
             node.log.debug('Incoming TCP connection from %s', remoteAddress)
 
-            const {encoding, keep_alive, interface, port} = node.getConfig()
+            const {encoding, keep_alive, host, port} = node.getConfig()
 
             node.log.debug('Using encoding: %s', encoding)
             socket.setEncoding(encoding)
@@ -64,18 +64,25 @@ module.exports = node => {
             })
 
             reader.on('line', line => {
-               const options = {
-                  metas: [
-                     [META_TCP_PROPERTIES, {
-                        remoteAddress,
-                        remoteFamily,
-                        remotePort,
-                        localAddress,
-                        localPort
-                     }]
-                  ]
+               if ( !listening ) {
+                  return
                }
-               node.in(line, options)
+
+               const message = node.createMessage()
+
+               message.source = line
+
+               message.setHeaders({
+                  [META_TCP_PROPERTIES]: {
+                     remoteAddress,
+                     remoteFamily,
+                     remotePort,
+                     localAddress,
+                     localPort
+                  }
+               })
+
+               node.in(message)
             })
 
             socket.on('error', err => {
@@ -88,9 +95,11 @@ module.exports = node => {
             })
          })
 
+         node.log.info('Listening (host: %s, port: %d)', host, port)
+
          server.listen(
             port,
-            interface,
+            host,
             () => {
                node.up()
             }
@@ -100,5 +109,14 @@ module.exports = node => {
          if ( server ) {
             server.close()
          }
+      })
+      .on('up', async () => {
+         listening = true
+      })
+      .on('pause', async () => {
+         listening = false
+      })
+      .on('resume', async () => {
+         listening = true
       })
 }

@@ -1,8 +1,9 @@
-const Path        = require('path')
-const Prometheus  = require('prom-client')
-const Node        = require('./node')
+import {fileURLToPath} from 'node:url';
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Node from './node.js'
 
-class Pipeline extends Node {
+export default class Pipeline extends Node {
 
    get configSchema() {
       return {
@@ -22,7 +23,7 @@ class Pipeline extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(__dirname, './pipelines')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './pipelines')
       ]
    }
 
@@ -36,9 +37,7 @@ class Pipeline extends Node {
       this.counter = new Prometheus.Counter({
          name: 'pipeline_message',
          help: 'Number of pipeline messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
    }
 }
-
-module.exports = Pipeline

@@ -1,6 +1,7 @@
 import Dgram from 'dgram'
+import Parser from 'nsyslog-parser'
 
-const META_UDP_PROPERTIES = 'input-udp-properties'
+const SYSLOG_PROPERTIES = 'input-syslog-properties'
 
 export default node => {
    let server, listening
@@ -37,17 +38,21 @@ export default node => {
                node.error(err)
             })
             .on('message', (data, rinfo) => {
-               if ( !listening ) {
+               if( !listening ) {
                   return
                }
+               const content = Parser(data.toString('utf8'))
+               const {message: source, ...properties} = content
 
                const message = node.createMessage()
 
-               message.source = data
+               message.source = source
 
-               message.setHeaders({
-                  [META_UDP_PROPERTIES]: rinfo
-               })
+               message
+                  .setContentType('text/plain')
+                  .setHeaders({
+                     [SYSLOG_PROPERTIES]: {...rinfo, ...properties}
+                  })
 
                node.in(message)
             })
@@ -56,8 +61,6 @@ export default node => {
                port,
                exclusive: true
             })
-
-         node.log.info('Listening (host: %s, port: %d, type: %s)', host, port, type)
       })
       .on('stop', async () => {
          if ( server ) {

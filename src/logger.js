@@ -1,5 +1,6 @@
-const Colors = require('colors/safe')
-const Winston = require('winston')
+import Colors from 'colors/safe.js'
+import Winston from 'winston'
+
 const { format, transports, addColors } = Winston
 const { combine, timestamp, label, printf, colorize, splat } = format
 
@@ -12,7 +13,7 @@ addColors({
 
 const isTTY = process.stdout.isTTY
 
-replaceRecursive = (text, pattern, func, max = 10) => {
+const replaceRecursive = (text, pattern, func, max = 10) => {
    const newText = text.replace(pattern, func)
    if (max === 0 || newText === text) {
       return newText
@@ -65,7 +66,7 @@ const customFormat = format.combine(
 
 const consoleTransport = new transports.Console()
 
-const Logger = Winston.createLogger({
+const internalLogger = Winston.createLogger({
    level: 'info',
    format: customFormat,
    defaultMeta: {service: 'logger'},
@@ -74,28 +75,30 @@ const Logger = Winston.createLogger({
    ]
 })
 
-module.exports = {
+const Logger = {
    setServiceName: name => {
-      Logger.defaultMeta.service = name
+      internalLogger.defaultMeta.service = name
    },
    setLogLevel: level => {
-      for ( transport in Logger.transports ) {
-         Logger.transports[transport].level = level || 'info'
+      for ( let transport in internalLogger.transports ) {
+         internalLogger.transports[transport].level = level || 'info'
       }
    },
    child: meta => {
-      return Logger.child(meta)
+      return internalLogger.child(meta)
    },
    debug: (...args) => {
-      return Logger.debug.apply(Logger, args)
+      return internalLogger.debug.apply(internalLogger, args)
    },
    info: (...args) => {
-      return Logger.info.apply(Logger, args)
+      return internalLogger.info.apply(internalLogger, args)
    },
    warn: (...args) => {
-      return Logger.warn.apply(Logger, args)
+      return internalLogger.warn.apply(internalLogger, args)
    },
    error: (...args) => {
-      return Logger.error.apply(Logger, args)
+      return internalLogger.error.apply(internalLogger, args)
    }
 }
+
+export default Logger

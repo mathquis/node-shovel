@@ -1,24 +1,25 @@
-const Path       = require('path')
-const Prometheus = require('prom-client')
-const Convict    = require('convict')
-const Logger     = require('./logger')
-const Utils      = require('./utils')
-const Input      = require('./input')
-const Decoder    = require('./decoder')
-const Queue      = require('./queue')
-const Pipeline   = require('./pipeline')
-const Encoder    = require('./encoder')
-const Output     = require('./output')
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Convict from 'convict'
+import Logger from './logger.js'
+import Utils from './utils.js'
+import Input from './input.js'
+import Decoder from './decoder.js'
+import Queue from './queue.js'
+import Pipeline from './pipeline.js'
+import Encoder from './encoder.js'
+import Output from './output.js'
 
 const registers = []
 
-class Processor {
-   constructor(pipelineConfig) {
+export default class Processor {
+   constructor(pipelineConfig, protocol) {
       this.pipelineConfig = pipelineConfig
+      this.protocol = protocol
 
       this.log = Logger.child({category: this.pipelineConfig.name})
 
-      const labelNames = ['kind', 'pipeline']
+      const labelNames = ['pipeline', 'kind', 'type']
 
       this.globalMessage = new Prometheus.Counter({
          name: 'message_processed',
@@ -34,10 +35,17 @@ class Processor {
 
       this.setupInput()
       this.setupDecoder()
-      this.setupQueue()
       this.setupPipeline()
       this.setupEncoder()
+      this.setupQueue()
       this.setupOutput()
+
+      this.input
+         .pipe(this.decoder)
+         .pipe(this.pipeline)
+         .pipe(this.encoder)
+         .pipe(this.queue)
+         .pipe(this.output)
    }
 
    get defaultLabels() {
@@ -47,36 +55,48 @@ class Processor {
    help() {
       return {
          input: this.input.help(),
-         queue: this.queue.help(),
          decoder: this.decoder.help(),
          pipeline: this.pipeline.help(),
          encoder: this.encoder.help(),
+         queue: this.queue.help(),
          output: this.output.help()
       }
    }
 
+   async getMessageProcessedMetric() {
+      return this.globalMessage.get()
+   }
+
    async start() {
       await this.output.start()
+      await this.queue.start()
       await this.encoder.start()
       await this.pipeline.start()
       await this.decoder.start()
-      await this.queue.start()
       await this.input.start()
    }
 
    async stop() {
       await this.input.stop()
-      await this.queue.stop()
       await this.decoder.stop()
       await this.pipeline.stop()
       await this.encoder.stop()
+      await this.queue.stop()
       await this.output.stop()
+   }
+
+   in(data) {
+      const message = this.input.createMessage()
+      message.fromObject(data)
+      this.globalMessage.inc({...this.defaultLabels, kind:'in'})
+      this.processingMessage.inc({pipeline: this.name})
+      this.pipeline.in(message)
    }
 
    async setupInput() {
       this.log.debug('Setting up input')
       try {
-         this.input = new Input(this.pipelineConfig)
+         this.input = new Input(this.pipelineConfig, this.protocol)
       } catch (err) {
          this.log.error(err)
       }
@@ -86,152 +106,68 @@ class Processor {
          })
          .on('in', message => {
             this.globalMessage.inc({...this.defaultLabels, kind:'in'})
-         })
-         .on('out', message => {
             this.processingMessage.inc({pipeline: this.name})
-            this.decoder.in(message)
          })
          .on('ack', message => {
             this.processingMessage.dec({pipeline: this.name})
-            this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
             this.globalMessage.inc({...this.defaultLabels, kind: 'acked'})
          })
          .on('nack', message => {
             this.processingMessage.dec({pipeline: this.name})
-            this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
             this.globalMessage.inc({...this.defaultLabels, kind: 'nacked'})
          })
          .on('ignore', message => {
             this.processingMessage.dec({pipeline: this.name})
-            this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
             this.globalMessage.inc({...this.defaultLabels, kind: 'ignored'})
          })
          .on('reject', message => {
             this.processingMessage.dec({pipeline: this.name})
-            this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
             this.globalMessage.inc({...this.defaultLabels, kind: 'rejected'})
          })
    }
 
-   setupDecoder() {
+   async setupDecoder() {
       this.log.debug('Setting up decoder')
-      this.decoder = new Decoder(this.pipelineConfig)
+      this.decoder = new Decoder(this.pipelineConfig, this.protocol)
       this.decoder
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
-         .on('out', message => {
-            this.queue.in(message)
-         })
-         .on('ack', message => {
-            this.input.ack(message)
-         })
-         .on('nack', message => {
-            this.input.nack(message)
-         })
-         .on('ignore', message => {
-            this.input.ignore(message)
-         })
-         .on('reject', message => {
-            this.input.reject(message)
-         })
    }
 
-   setupQueue() {
-      this.log.debug('Setting up queue')
-      this.queue = new Queue(this.pipelineConfig)
-      this.queue
-         .on('error', err => {
-            this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
-         })
-         .on('queued', message => {
-            this.decoder.ack(message)
-         })
-         .on('out', message => {
-            this.pipeline.in(message)
-         })
-         .on('pause', () => {
-            this.input.pause()
-         })
-         .on('resume', () => {
-            this.input.resume()
-         })
-   }
-
-   setupPipeline() {
+   async setupPipeline() {
       this.log.debug('Setting up pipeline')
-      this.pipeline = new Pipeline(this.pipelineConfig)
+      this.pipeline = new Pipeline(this.pipelineConfig, this.protocol)
       this.pipeline
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
-         .on('out', message => {
-            this.encoder.in(message)
-         })
-         .on('ack', message => {
-            this.queue.ack(message)
-         })
-         .on('nack', message => {
-            this.queue.nack(message)
-         })
-         .on('ignore', message => {
-            this.queue.ignore(message)
-         })
-         .on('reject', message => {
-            this.queue.reject(message)
-         })
    }
 
-   setupEncoder() {
+   async setupEncoder() {
       this.log.debug('Setting up encoder')
-      this.encoder = new Encoder(this.pipelineConfig)
+      this.encoder = new Encoder(this.pipelineConfig, this.protocol)
       this.encoder
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
-         .on('out', message => {
-            this.output.in(message)
-         })
-         .on('ack', message => {
-            this.pipeline.ack(message)
-         })
-         .on('nack', message => {
-            this.pipeline.nack(message)
-         })
-         .on('ignore', message => {
-            this.pipeline.ignore(message)
-         })
-         .on('reject', message => {
-            this.pipeline.reject(message)
+   }
+
+   async setupQueue() {
+      this.log.debug('Setting up queue')
+      this.queue = new Queue(this.pipelineConfig, this.protocol)
+      this.queue
+         .on('error', err => {
+            this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
    }
 
-   setupOutput() {
+   async setupOutput() {
       this.log.debug('Setting up output')
-      this.output = new Output(this.pipelineConfig)
+      this.output = new Output(this.pipelineConfig, this.protocol)
       this.output
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
-         .on('ack', message => {
-            this.encoder.ack(message)
-         })
-         .on('nack', message => {
-            this.encoder.nack(message)
-         })
-         .on('ignore', message => {
-            this.encoder.ignore(message)
-         })
-         .on('reject', message => {
-            this.encoder.reject(message)
-         })
-         .on('pause', () => {
-            this.queue.pause()
-         })
-         .on('resume', () => {
-            this.queue.resume()
-         })
    }
 }
-
-module.exports = Processor

@@ -1,5 +1,5 @@
-module.exports = node => {
-   node.on('in', message => {
+export default node => {
+   node.on('in', async (message) => {
       node.out(message)
    })
 }

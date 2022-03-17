@@ -1,16 +1,16 @@
-const Path        = require('path')
-const Prometheus  = require('prom-client')
-const Node        = require('./node')
-const Message     = require('./message')
+import {fileURLToPath} from 'node:url';
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Node from './node.js'
 
-class Queue extends Node {
+export default class Queue extends Node {
    get configSchema() {
       return {
          ...super.configSchema,
          use: {
             doc: '',
             format: String,
-            default: 'memory'
+            default: 'noop'
          }
       }
    }
@@ -22,7 +22,7 @@ class Queue extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(__dirname, './queues')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './queues')
       ]
    }
 
@@ -36,43 +36,20 @@ class Queue extends Node {
       this.counter = new Prometheus.Counter({
          name: 'queue_message',
          help: 'Number of queue messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
    }
 
-   async queued(message) {
-      this.log.debug('== QUEUED %s', message)
-      this.emit('queued', message)
+   flush(message) {
+      this.log.debug('>> FLUSH %s', message || '')
+      this.emit('flush', message)
+      // this.counter.inc({...this.defaultLabels, kind: 'batch'})
+      this.counter.inc({...this.defaultLabels, kind: 'flush'})
    }
 
-   // async evicted(message) {
-   //    this.log.debug('!! EVICTED %s', message)
-   //    this.emit('evicted', message)
-   //    this.counter.inc({...this.defaultLabels, kind: 'evicted'})
-   // }
-
-   async pause() {
-      if ( !this.isUp ) return
-      if ( this.isPaused ) return
-      this.isPaused = true
-      this.log.debug('| Paused')
-      await this.emit('pause')
-      this.counter.inc({...this.defaultLabels, kind: 'pause'})
+   evict(message) {
+      this.log.debug('// EVICTED %s', message || '')
+      this.emit('evicted', message)
+      this.counter.inc({...this.defaultLabels, kind: 'evicted'})
    }
-
-   async resume() {
-      if ( !this.isUp ) return
-      if ( !this.isPaused ) return
-      this.isPaused = false
-      this.log.debug('> Resumed')
-      await this.emit('resume')
-      this.counter.inc({...this.defaultLabels, kind: 'resume'})
-   }
-
-   // async drain() {
-   //    this.log.debug(':: DRAINED')
-   //    this.emit('drain')
-   // }
 }
-
-module.exports = Queue

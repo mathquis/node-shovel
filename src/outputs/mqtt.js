@@ -1,11 +1,11 @@
-const MQTT       = require('mqtt')
-const File       = require('fs')
-const Path       = require('path')
+import File from 'fs'
+import Path from 'path'
+import MQTT from 'mqtt'
 
-const META_MQTT_TOPIC      = 'input_mqtt_topic'
-const META_MQTT_PROPERTIES = 'input_mqtt_properties'
+const META_MQTT_TOPIC      = 'output-mqtt-topic'
+const META_MQTT_PROPERTIES = 'output-mqtt-properties'
 
-module.exports = node => {
+export default node => {
    let connection
 
   function loadIfExists(file) {
@@ -110,26 +110,22 @@ module.exports = node => {
          }
       })
       .on('in', async (message) => {
-         try {
-            if ( !connection ) return
-            const content = await node.encode(message)
-            if ( !content ) return
-            await new Promise((resolve, reject) => {
-                  const topicTemplate = message.getMeta(META_MQTT_TOPIC) || node.config.get('topic')
-                  const topic = node.util.renderTemplate(topicTemplate, message)
-                  node.log.debug('Publishing message to topic "%s"', topic)
-                  connection.publish(topic, content, message.getMeta(META_MQTT_PROPERTIES), err => {
-                     if (err) {
-                        reject(err)
-                        return
-                     }
-                     resolve()
-                  })
-            })
-            node.ack(message)
-         } catch (err) {
+         if ( !node.isUp || node.isPaused ) {
             node.nack(message)
-            node.error(err)
+            return
          }
+         await new Promise((resolve, reject) => {
+            const topicTemplate = message.getHeader(META_MQTT_TOPIC) || node.getConfig('topic')
+            const topic = node.util.renderTemplate(topicTemplate, message)
+            node.log.debug('Publishing message to topic "%s"', topic)
+            connection.publish(topic, message.payload, message.getHeader(META_MQTT_PROPERTIES), err => {
+               if (err) {
+                  reject(err)
+                  return
+               }
+               node.ack(message)
+               resolve()
+            })
+         })
       })
 }

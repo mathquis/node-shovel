@@ -1,7 +1,7 @@
-const Path = require('path')
-const File = require('fs')
+import Path from 'path'
+import File from 'fs'
 
-module.exports = node => {
+export default node => {
    let writer, draining
 
    node

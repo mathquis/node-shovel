@@ -1,17 +1,24 @@
-const Loadable = require('./loadable')
+import Loadable from './loadable.js'
+import Message from './message.js'
 
-class NodeOperator extends Loadable {
-   constructor(pipelineConfig) {
+export default class NodeOperator extends Loadable {
+   constructor(pipelineConfig, protocol) {
       super(pipelineConfig)
 
+      this._protocol        = protocol
       this.isStarted        = false
       this.isUp             = false
+      this.isPaused         = false
 
       this.setupMonitoring()
    }
 
    get defaultLabels() {
       return {pipeline: this.pipelineConfig.name}
+   }
+
+   get protocol() {
+      return this._protocol
    }
 
    setupMonitoring() {
@@ -24,14 +31,53 @@ class NodeOperator extends Loadable {
       this.counter = new Prometheus.Counter({
          name: 'node_message',
          help: 'Number of messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
+   }
+
+   createMessage(data) {
+      return new Message(data)
+   }
+
+   shutdown() {
+      this.log.info('Shutting down pipeline')
+      process.emit('shutdown')
+   }
+
+   pipe(node) {
+      this
+         .on('out', async message => {
+            node.in(message)
+         })
+
+      node
+         .on('ack', message => {
+            this.ack(message)
+         })
+         .on('nack', message => {
+            this.nack(message)
+         })
+         .on('ignore', message => {
+            this.ignore(message)
+         })
+         .on('reject', message => {
+            this.reject(message)
+         })
+         .on('pause', () => {
+            this.pause()
+         })
+         .on('resume', () => {
+            this.resume()
+         })
+
+      return node
    }
 
    async start() {
       if ( this.isStarted ) return
+      await this.load()
       this.isStarted = true
-      this.log.info('Started')
+      this.log.debug('Started')
       const results = await this.emit('start')
       if ( !results ) {
          await this.up()
@@ -43,27 +89,49 @@ class NodeOperator extends Loadable {
       await this.down()
       await this.emit('stop')
       this.isStarted = false
-      this.log.info('Stopped')
+      this.log.debug('Stopped')
    }
 
    async up() {
       if ( this.isUp ) return
-      await this.emit('up')
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
+      await this.emit('up')
       this.log.info('"^ Up"')
    }
 
    async down() {
       if ( !this.isUp ) return
-      await this.emit('down')
       this.isUp = false
-      this.status.set({...this.defaultLabels, kind: 'up'}, 0)
+      this.status.set({...this.defaultLabels, kind: 'down'}, 0)
+      await this.emit('down')
       this.log.info('"v Down"')
    }
 
+   async pause() {
+      if ( !this.isUp ) return
+      if ( this.isPaused ) return
+      this.isPaused = true
+      this.log.info('| Paused')
+      await this.emit('pause')
+      this.counter.inc({...this.defaultLabels, kind: 'pause'})
+   }
+
+   async resume() {
+      if ( !this.isUp ) return
+      if ( !this.isPaused ) return
+      this.isPaused = false
+      this.log.info('> Resumed')
+      await this.emit('resume')
+      this.counter.inc({...this.defaultLabels, kind: 'resume'})
+   }
+
    error(err) {
-      this.log.error(err)
+      let errorMessage = err.stack
+      if ( err.origin ) {
+         errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(err.origin, null, 3)
+      }
+      this.log.error(errorMessage)
       this.counter.inc({...this.defaultLabels, kind: 'error'})
       this.emit('error', err)
    }
@@ -74,40 +142,39 @@ class NodeOperator extends Loadable {
       try {
          await this.emit('in', message)
       } catch (err) {
+         err.origin = message
          this.error(err)
          this.reject(message)
       }
    }
 
-   async out(message) {
+   out(message) {
       this.log.debug('-> OUT %s', message || '')
-      await this.emit('out', message)
+      this.emit('out', message)
       this.counter.inc({...this.defaultLabels, kind: 'out'})
    }
 
-   async ack(message) {
+   ack(message) {
       this.log.debug('-+ ACK %s', message || '')
-      await this.emit('ack', message)
+      this.emit('ack', message)
       this.counter.inc({...this.defaultLabels, kind: 'acked'})
    }
 
-   async nack(message) {
+   nack(message) {
       this.log.debug('-X NACK %s', message || '')
-      await this.emit('nack', message)
+      this.emit('nack', message)
       this.counter.inc({...this.defaultLabels, kind: 'nacked'})
    }
 
-   async ignore(message) {
+   ignore(message) {
       this.log.debug('-- IGNORE %s', message || '')
-      await this.emit('ignore', message)
+      this.emit('ignore', message)
       this.counter.inc({...this.defaultLabels, kind: 'ignored'})
    }
 
-   async reject(message) {
+   reject(message) {
       this.log.debug('-! REJECT %s', message || '')
-      await this.emit('reject', message)
+      this.emit('reject', message)
       this.counter.inc({...this.defaultLabels, kind: 'rejected'})
    }
 }
-
-module.exports = NodeOperator

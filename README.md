@@ -31,7 +31,6 @@ input:
 
 decoder:
   use: parser.js
-  split: true
   options:
 
 pipeline:
@@ -42,9 +41,15 @@ encoder:
   use: noop
   options:
 
+queue:
+  use: batch
+  options:
+    persistent: true # Store queue on disk
+    batch_size: 1000
+    flush_timeout: 5s
+
 output:
   use: elasticsearch
-  codec:
   options:
     scheme: http
     index_name: audit-events
@@ -59,19 +64,42 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available inputs
 
 - amqp
+- file
 - http-request
 - http-server
 - mqtt
 - stdin
 - stream
-- tail
+- syslog
 - tcp
 - udp
+
+### Available decoders (optional)
+
+- base64
+- csv
+- json
+- json5
+- multiline (WIP)
+- protobuf
+
+### Available encoders (optional)
+
+- base64
+- csv
+- json
+- json5
+- protobuf
+
+### Available queues (optional)
+
+- batch
 
 ### Available outputs
 
 - amqp
 - blackhole
+- debug
 - elasticsearch
 - file
 - mqtt
@@ -79,14 +107,6 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - tcp
 - udp
 
-### Available codecs
-
-- csv
-- json
-- json5
-- multiline (WIP)
-- protobuf
-- syslog
 
 ### Custom decoder/encoder
 
@@ -94,10 +114,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 module.exports = node => {
   node
     .registerConfig({})
-    .on('decode', async (message) => {
-      node.out(message)
-    })
-    .on('encode', async (message) => {
+    .on('in', async (message) => {
       node.out(message)
     })
 }
@@ -153,6 +170,9 @@ module.exports = node => {
 
     .on('up', async () => {})
     .on('down', async () => {})
+
+    .on('pause', async () => {})
+    .on('resume', async () => {})
 
     .on('in', async (message) => {
       node.out(message)

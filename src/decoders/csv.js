@@ -1,7 +1,6 @@
-const Parser = require('csv-parse').parse
-const Serializer = require('csv-stringify').stringify
+import parse as Parser from 'csv-parse'
 
-module.exports = node => {
+export default node => {
    node
       .registerConfig({
          delimiter: {
@@ -30,11 +29,11 @@ module.exports = node => {
             default: 'utf8'
          }
       })
-      .on('decode', async (message) => {
+      .on('in', async (message) => {
          const {delimiter, escape, quote, columns, encoding} = node.getConfig()
 
-         message.content = await new Promise((resolve, reject) => {
-            Parser(message.payload, {
+         const content = await new Promise((resolve, reject) => {
+            Parser(message.source, {
                delimiter,
                escape,
                quote,
@@ -48,27 +47,7 @@ module.exports = node => {
                resolve(records.length === 1 ? records[0] : records)
             })
          })
-         node.out(message)
-      })
-      .on('encode', async (message) => {
-         const {delimiter, escape, quote, columns, encoding} = node.getConfig()
-
-         message.payload = await new Promise((resolve, reject) => {
-            Serializer([message.content], {
-               delimiter,
-               escape,
-               quote,
-               columns: columns.length > 0 ? columns : false,
-               encoding
-            }, (err, output) => {
-               if (err) {
-                  reject(err)
-                  return
-               }
-               resolve(output)
-            })
-         })
-
+         message.decode(content)
          node.out(message)
       })
 }

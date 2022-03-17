@@ -1,12 +1,13 @@
-const Path       = require('path')
-const Prometheus = require('prom-client')
-const Node       = require('./node')
+import {fileURLToPath} from 'node:url';
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Node from './node.js'
 
-class Decoder extends Node {
+export default class Decoder extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(__dirname, './codecs')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './decoders')
       ]
    }
 
@@ -21,11 +22,6 @@ class Decoder extends Node {
             doc: '',
             format: String,
             default: 'noop'
-         },
-         split: {
-            doc: '',
-            format: Boolean,
-            default: false
          }
       }
    }
@@ -40,31 +36,7 @@ class Decoder extends Node {
       this.counter = new Prometheus.Counter({
          name: 'decoder_message',
          help: 'Number of decoder messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
    }
-
-   async in(message) {
-      this.log.debug('<- DECODE %s', message || '')
-      this.counter.inc({...this.defaultLabels, kind: 'in'})
-      try {
-         await this.emit('decode', message)
-      } catch (err) {
-         this.error(err)
-         this.reject(message)
-      }
-   }
-
-   async out(message) {
-      if ( !this.config.get('split') || !Array.isArray(message.content) ) {
-         await super.out(message)
-      } else {
-         message.content.forEach(content => {
-            super.out(message.clone(null, content))
-         })
-         await this.ack(message)
-      }
-   }
 }
-
-module.exports = Decoder

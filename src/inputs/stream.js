@@ -1,10 +1,10 @@
-const Path = require('path')
-const File = require('fs')
+import Path from 'path'
+import File from 'fs'
 
 const START_POSITION_BEGINNING = 'beginning'
 const START_POSITION_END = 'end'
 
-module.exports = node => {
+export default node => {
    let reader
 
    node
@@ -13,6 +13,11 @@ module.exports = node => {
             doc: '',
             format: String,
             default: ''
+         },
+         gzip: {
+            doc: '',
+            format: Boolean,
+            default: false
          },
          start_position: {
             doc: '',
@@ -48,16 +53,23 @@ module.exports = node => {
          }
 
          try {
-            reader = File.createReadStream(filePath, {start: startPosition, encoding, highWaterMark})
+            reader = File.createReadStream(filePath, {start: startPosition, highWaterMark})
+
+            node.log.info('Streaming "%s" (start: %d, buffer: %d)', filePath, startPosition, highWaterMark)
+
             reader
-               .on('data', payload => {
-                  node.in(payload)
+               .on('data', buffer => {
+                  const message = node.createMessage()
+
+                  message.source = buffer
+
+                  node.in(message)
                })
                .on('error', err => {
                   node.error(err)
                })
                .on('end', () => {
-                  node.down()
+                  node.shutdown()
                })
          } catch (err) {
             node.error(err)

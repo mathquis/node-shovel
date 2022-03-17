@@ -8,16 +8,10 @@
  * cluster master.
  */
 
-const Registry = require('prom-client/lib/registry');
-const { Grouper } = require('prom-client/lib/util');
-const { aggregators } = require('prom-client/lib/metricAggregators');
-// We need to lazy-load the 'cluster' module as some application servers -
-// namely Passenger - crash when it is imported.
-let cluster = () => {
-   const data = require('cluster');
-   cluster = () => data;
-   return data;
-};
+import Cluster from 'cluster';
+import Registry from 'prom-client/lib/registry.js'
+import { Grouper } from 'prom-client/lib/util.js'
+import { aggregators } from 'prom-client/lib/metricAggregators.js'
 
 const GET_METRICS_REQ = 'agg_metrics:getMetricsReq';
 const GET_METRICS_RES = 'agg_metrics:getMetricsRes';
@@ -27,7 +21,7 @@ let requestCtr = 0; // Concurrency control
 let listenersAdded = false;
 const requests = new Map(); // Pending requests for workers' local metrics.
 
-class AggregatorRegistry extends Registry {
+export default class AggregatorRegistry extends Registry {
    constructor() {
       super();
       addListeners();
@@ -76,11 +70,11 @@ class AggregatorRegistry extends Registry {
                   requestId,
                };
 
-               for (const id in cluster().workers) {
+               for (const id in Cluster.workers) {
                   // If the worker exits abruptly, it may still be in the workers
                   // list but not able to communicate.
-                  if (cluster().workers[id].isConnected()) {
-                     cluster().workers[id].send(message);
+                  if (Cluster.workers[id].isConnected()) {
+                     Cluster.workers[id].send(message);
                      request.pending++;
                   }
                }
@@ -164,9 +158,9 @@ function addListeners() {
    if (listenersAdded) return;
    listenersAdded = true;
 
-   if (cluster().isMaster) {
+   if (Cluster.isMaster) {
       // Listen for worker responses to requests for local metrics
-      cluster().on('message', (worker, message) => {
+      Cluster.on('message', (worker, message) => {
          if (message.type === GET_METRICS_RES) {
             const request = requests.get(message.requestId);
 
@@ -184,8 +178,9 @@ function addListeners() {
                clearTimeout(request.errorTimeout);
 
                const registry = AggregatorRegistry.aggregate(request.responses);
-               const promString = registry.metrics();
-               request.done(null, promString);
+
+               // const promString = registry.metrics();
+               request.done(null, registry);
             }
          }
       });
@@ -194,7 +189,7 @@ function addListeners() {
 
 // Respond to master's requests for worker's local metrics.
 process.on('message', message => {
-   if (cluster().isWorker && message.type === GET_METRICS_REQ) {
+   if (Cluster.isWorker && message.type === GET_METRICS_REQ) {
       Promise.all(registries.map(r => r.getMetricsAsJSON()))
          .then(metrics => {
             process.send({
@@ -212,5 +207,3 @@ process.on('message', message => {
          });
    }
 });
-
-module.exports = AggregatorRegistry;

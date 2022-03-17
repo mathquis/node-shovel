@@ -1,12 +1,13 @@
-const Path       = require('path')
-const Prometheus = require('prom-client')
-const Node       = require('./node')
+import {fileURLToPath} from 'node:url';
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Node from './node.js'
 
-class Encoder extends Node {
+export default class Encoder extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(__dirname, './codecs')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './encoders')
       ]
    }
 
@@ -35,20 +36,7 @@ class Encoder extends Node {
       this.counter = new Prometheus.Counter({
          name: 'encoder_message',
          help: 'Number of encoder messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
    }
-
-   async in(message) {
-      this.log.debug('-> ENCODE %s', message || '')
-      this.counter.inc({...this.defaultLabels, kind: 'in'})
-      try {
-         await this.emit('encode', message)
-      } catch (err) {
-         this.error(err)
-         this.reject(message)
-      }
-   }
 }
-
-module.exports = Encoder

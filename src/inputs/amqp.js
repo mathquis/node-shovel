@@ -1,12 +1,12 @@
-const AMQP = require('amqplib')
+import AMQP from 'amqplib'
 
-const META_AMQP_FIELDS     = 'input_amqp_fields'
-const META_AMQP_PROPERTIES = 'input_amqp_properties'
+const META_AMQP_FIELDS     = 'input-amqp-fields'
+const META_AMQP_PROPERTIES = 'input-amqp-properties'
 
 let consumers = 0
 
-module.exports = node => {
-   let connection, channel, reconnectTimeout
+export default node => {
+   let connection, channel, consuming, reconnectTimeout
 
    consumers++
    const consumerTag = 'shovel-amqp-input-' + consumers
@@ -69,10 +69,15 @@ module.exports = node => {
             format: Boolean,
             default: true
          },
+         heartbeat: {
+            doc: '',
+            format: 'duration',
+            default: '60s'
+         },
          reconnect_after_ms: {
             doc: '',
-            format: Number,
-            default: 5000
+            format: 'duration',
+            default: '5s'
          }
       })
       .on('start', async () => {
@@ -84,41 +89,26 @@ module.exports = node => {
             await connection.close()
          }
       })
-      .on('ack', (message) => {
-         if ( !channel ) return
-         const fields = message.getMeta(META_AMQP_FIELDS)
-         if ( fields ) {
-            channel.ack({fields})
-         } else {
-            node.error(new Error(`Unable to ack message (id: ${message.id})`))
-         }
+      .on('up', async () => {
+         startConsuming()
       })
-      .on('nack', (message) => {
-         if ( !channel ) return
-         const fields = message.getMeta(META_AMQP_FIELDS)
-         if ( fields ) {
-            channel.nack({fields}, false, true)
-         } else {
-            node.error(new Error(`Unable to nack message (id: ${message.id})`))
-         }
+      .on('pause', async () => {
+         stopConsuming()
       })
-      .on('ignore', (message) => {
-         if ( !channel ) return
-         const fields = message.getMeta(META_AMQP_FIELDS)
-         if ( fields ) {
-            channel.ack({fields})
-         } else {
-            node.error(new Error(`Unable to ignore message (id: ${message.id})`))
-         }
+      .on('resume', async () => {
+         startConsuming()
       })
-      .on('reject', (message) => {
-         if ( !channel ) return
-         const fields = message.getMeta(META_AMQP_FIELDS)
-         if ( fields ) {
-            channel.nack({fields}, false, false)
-         } else {
-            node.error(new Error(`Unable to reject message (id: ${message.id})`))
-         }
+      .on('ack', async (message) => {
+         ackMessage(message)
+      })
+      .on('nack', async (message) => {
+         nackMessage(message, true)
+      })
+      .on('ignore', async (message) => {
+         ackMessage(message)
+      })
+      .on('reject', async (message) => {
+         nackMessage(message, false)
       })
 
    async function connect() {
@@ -128,14 +118,15 @@ module.exports = node => {
          clearReconnectTimeout()
 
          // Connect to AMQP
-         const {host: hostname, port, vhost, username, password} = node.getConfig()
+         const {host: hostname, port, vhost, username, password, heartbeat} = node.getConfig()
 
          connection = await AMQP.connect({
             hostname,
             port,
             vhost,
             username,
-            password
+            password,
+            heartbeat
          })
 
          connection
@@ -144,6 +135,13 @@ module.exports = node => {
                if ( err ) {
                   reconnect(err)
                }
+            })
+            .on('block', (reason) => {
+               node.log.warn('Connection blocked by server (reason: %s)', reason)
+               node.down()
+            })
+            .on('unblock', () => {
+               node.up()
             })
             .on('error', err => {
                reconnect(err)
@@ -161,8 +159,14 @@ module.exports = node => {
       }
       const reconnectAfterMs = node.getConfig('reconnect_after_ms')
       node.log.debug('Reconnecting in %d...', reconnectAfterMs)
-      connection = null
-      channel = null
+      if ( connection ) {
+         connection.removeAllListeners()
+         connection = null
+      }
+      if ( channel ) {
+         channel.removeAllListeners()
+         channel = null
+      }
       node.down()
       clearReconnectTimeout()
       reconnectTimeout = setTimeout(() => {
@@ -179,6 +183,13 @@ module.exports = node => {
    async function onConnect() {
       node.log.debug('Connected')
 
+      await createChannel()
+      await startConsuming()
+
+      node.up()
+   }
+
+   async function createChannel() {
       const {
          queue_name: queueName,
          queue_size: queueSize,
@@ -212,23 +223,76 @@ module.exports = node => {
                onConnect()
             }, reconnectAfterMs)
          })
+   }
 
-      channel.consume(queueName, async data => {
-         const options = {
-            contentType: data.properties.contentType,
-            metas: [
-               [META_AMQP_FIELDS, data.fields],
-               [META_AMQP_PROPERTIES, data.properties]
-            ]
+   async function startConsuming() {
+      if ( !channel ) {
+         return
+      }
+      if ( consuming ) {
+         return
+      }
+      consuming = true
+      const {
+         queue_name: queueName,
+      } = node.getConfig()
+      await channel.consume(queueName, async data => {
+         if ( !data ) {
+            return
          }
-         node.in(data.content, options)
+         const message = createMessage(data)
+         node.in(message)
       }, {
          consumerTag,
          noAck: false
       })
-
-      node.up()
    }
 
+   async function stopConsuming() {
+      if ( !channel ) {
+         return
+      }
+      if ( !consuming ) {
+         return
+      }
+      consuming = false
+      await channel.cancel(consumerTag)
+   }
 
+   function createMessage(data) {
+      const message = node.createMessage()
+      message.source = data.content
+      if ( data.properties.contentType ) {
+         message.setContentType(data.properties.contentType)
+      }
+      message.setHeaders({
+         [META_AMQP_FIELDS]: data.fields,
+         [META_AMQP_PROPERTIES]: data.properties
+      })
+      return message
+   }
+
+   function ackMessage(message) {
+      if ( !channel ) {
+         return
+      }
+      const fields = message.getHeader(META_AMQP_FIELDS)
+      if ( fields ) {
+         channel.ack({fields})
+      } else {
+         node.error(new Error(`Unable to ack message (id: ${message.id})`))
+      }
+   }
+
+   function nackMessage(message, requeue) {
+      if ( !channel ) {
+         return
+      }
+      const fields = message.getHeader(META_AMQP_FIELDS)
+      if ( fields ) {
+         channel.nack({fields}, false, !!requeue)
+      } else {
+         node.error(new Error(`Unable to reject message (id: ${message.id})`))
+      }
+   }
 }

@@ -1,6 +1,6 @@
-const Dgram = require('dgram')
+import Dgram from 'dgram'
 
-module.exports = node => {
+export default node => {
    let client
 
    node
@@ -14,18 +14,26 @@ module.exports = node => {
             doc: '',
             format: 'port',
             default: 515
+         },
+         type: {
+            doc: '',
+            format: ['udp4', 'udp6'],
+            default: 'udp4'
          }
       })
       .on('start', () => {
-         client = Dgram.createSocket('udp4')
+         const {type} = node.getConfig()
+         client = Dgram.createSocket(type)
       })
       .on('in', async (message) => {
-         const content = await node.encode(message)
-         if ( !content ) return
-         client.send(content + '\n', node.getConfig('port'), node.getConfig('host'), err => {
+         const {
+            host,
+            port
+         } = node.getConfig()
+         client.send(message.payload, port, host, err => {
             if ( err ) {
-               node.nack(message)
                node.error(err)
+               node.reject(message)
                return
             }
             node.ack(message)

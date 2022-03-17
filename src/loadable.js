@@ -1,14 +1,14 @@
-const EventEmitter = require('events-async')
-const Cluster      = require('cluster')
-const Convict      = require('convict')
-const Logger       = require('./logger')
-const Utils        = require('./utils')
+import EventEmitter from 'events-async'
+import Cluster from 'cluster'
+import Convict from 'convict'
+import Logger from './logger.js'
+import Utils from './utils.js'
 
-class Loadable extends EventEmitter {
+export default class Loadable extends EventEmitter {
    constructor(pipelineConfig) {
       super()
 
-      this.pipelineConfig   = pipelineConfig
+      this.pipelineConfig = pipelineConfig
       this.executorConfigSchema = {
          doc: '',
          format: 'options',
@@ -24,14 +24,6 @@ class Loadable extends EventEmitter {
       if (!this.kind) {
          throw new Error(`Missing node kind`)
       }
-
-      this.loader = Utils.loadFn(this.kind, this.includePaths)
-
-      if ( typeof this.loader !== 'function' ) {
-         throw new Error(`Invalid node "${this.kind}" (not a function)`)
-      }
-
-      this.executor = this.loader(this)
 
       this.log.debug('%O', this.config.get('options'))
    }
@@ -59,6 +51,18 @@ class Loadable extends EventEmitter {
             ...this.executorConfigSchema
          }
       }
+   }
+
+   async load() {
+      this.loader = await Utils.loadFn(this.kind, this.includePaths)
+
+      if ( typeof this.loader !== 'function' ) {
+         throw new Error(`Invalid node "${this.kind}" (not a function)`)
+      }
+
+      this.loader(this)
+
+      return this
    }
 
    getConfig(key) {
@@ -94,5 +98,3 @@ class Loadable extends EventEmitter {
       return this.config.getSchema()
    }
 }
-
-module.exports = Loadable

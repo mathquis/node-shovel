@@ -1,6 +1,6 @@
-const Net = require('net')
+import Net from 'net'
 
-module.exports = node => {
+export default node => {
    let client, reconnectTimeout
 
    node
@@ -36,30 +36,21 @@ module.exports = node => {
             })
          }
       }
-      .on('up', () => {
-         const q = queue
-         queue = []
-         q.forEach(message => {
-            node.in(message)
-         })
-      })
       .on('in', async (message) => {
-         try {
-            if ( client && !client.pending ) {
-               const content = await node.encode(message)
-               if ( !content ) return
-               client.write(content + '\n', 'utf8', err => {
-                  if ( err ) {
-                     queue.push(message)
-                     return
-                  }
-                  node.ack(message)
-               })
-            } else {
-               queue.push(message)
-            }
-         } catch (err) {
+         if ( !client || client.pending || !node.isUp || node.isPaused ) {
             node.nack(message)
+            return
+         }
+         try {
+            client.write(message.payload, 'utf8', err => {
+               if ( err ) {
+                  queue.push(message)
+                  return
+               }
+               node.ack(message)
+            })
+         } catch (err) {
+            node.reject(message)
             node.error(err)
          }
       })

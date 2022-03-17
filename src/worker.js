@@ -1,59 +1,97 @@
-const File               = require('fs')
-const Path               = require('path')
-const Cluster            = require('cluster')
-const Readline           = require('readline')
-const Prometheus         = require('prom-client')
-const YAML               = require('js-yaml')
-const Config             = require('./config')
-const Logger             = require('./logger')
-const Processor          = require('./processor')
-const Help               = require('./help')
-const AggregatorRegistry = require('./aggregated_metrics')
+import File from 'fs'
+import Path from 'path'
+import Readline from 'readline'
+import Cluster from 'cluster'
+import Prometheus from 'prom-client'
+import Logger from './logger.js'
+import Processor from './processor.js'
+import {WorkerProtocol as Protocol, Event} from './protocol.js'
+import AggregatorRegistry from './aggregated_metrics.js'
+import Utils from './utils.js'
 
-module.exports = async (pipelineConfig) => {
+export default async (pipelineConfig) => {
+   let pipeline, protocol
+
    const log = Logger.child({category: 'worker', pipeline: pipelineConfig.name, worker: Cluster.worker.id})
 
    try {
-
       Prometheus.collectDefaultMetrics()
 
-      log.info('Running pipeline "%s"', pipelineConfig.name)
+      log.debug('Starting (pipeline: %s)', pipelineConfig.name)
 
-      const worker = new Processor(pipelineConfig)
+      protocol = new Protocol()
 
-      if ( process.platform === 'win32' ) {
-        var rl = Readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
+      pipeline = new Processor(pipelineConfig, protocol)
 
-        rl.on('SIGINT', function () {
-          process.emit('SIGINT');
-        });
+      async function exitHandler(code) {
+         // Nothing
       }
 
+      [
+         'beforeExit',
+         'uncaughtException',
+         'unhandledRejection',
+         'SIGHUP',
+         'SIGINT',
+         'SIGQUIT',
+         'SIGILL',
+         'SIGTRAP',
+         'SIGABRT','SIGBUS',
+         'SIGFPE',
+         'SIGUSR1',
+         'SIGSEGV',
+         'SIGUSR2',
+         'SIGTERM'
+      ].forEach(exitEvent => process.on(exitEvent, exitHandler))
+
       process
-         .on('asyncExit', async () => {
-            await worker.stop()
-            process.exit()
+         .on('message', async ({type, message}) => {
+            switch ( type ) {
+               case Event.STOP:
+                  shutdown()
+                  break
+
+               case Event.MESSAGE:
+                  pipeline.in(message)
+                  break
+            }
          })
-         .on('exit', () => {
-            worker.stop()
-         })
-         .on('SIGINT', async () => {
-            process.emit('asyncExit')
-         })
-         .on('SIGTERM', async () => {
-            process.emit('asyncExit')
+         .on('shutdown', async () => {
+            shutdown()
          })
          .on('uncaughtException', async err => {
             log.error(err)
-            process.exit(1)
+            stop(9)
          })
 
-      await worker.start()
+      await pipeline.start()
+
+      protocol.ready()
+
    } catch (err) {
       log.error(err.stack)
-      process.exit(9)
+      stop(1)
+   }
+
+   async function shutdown() {
+      await pipeline.stop()
+      stop()
+   }
+
+   async function stop(exitCode) {
+      try {
+         const messageProcessedMetric = await pipeline.getMessageProcessedMetric()
+         const metrics = messageProcessedMetric.values.reduce((m, metric) => {
+            m[metric.labels.kind] = metric.value
+            return m
+         }, {in: 0, acked: 0, nacked: 0, ignored: 0, rejected: 0})
+         protocol.stopped({
+            pipeline: pipelineConfig.name,
+            metrics
+         })
+         process.exit(exitCode)
+      } catch (err) {
+         log.error(err)
+      }
    }
 }

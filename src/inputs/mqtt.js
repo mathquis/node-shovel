@@ -1,12 +1,12 @@
-const File = require('fs')
-const Path = require('path')
-const MQTT = require('mqtt')
+import File from 'fs'
+import Path from 'path'
+import MQTT from 'mqtt'
 
-const META_MQTT_TOPIC = 'input_mqtt_topic'
-const META_MQTT_PROPERTIES = 'input_mqtt_properties'
+const META_MQTT_TOPIC = 'input-mqtt-topic'
+const META_MQTT_PROPERTIES = 'input-mqtt-properties'
 
-module.exports = node => {
-   let connection
+export default node => {
+   let connection, listening
 
    function loadIfExists(file) {
       if ( !file ) {
@@ -92,24 +92,41 @@ module.exports = node => {
                node.error(err)
             })
             .on('message', async (topic, payload, packet) => {
+               if ( !listening ) {
+                  return
+               }
                const {cmd, retain, qos, dup, properties = {}} = packet
                const props = {cmd, retain, qos, dup, properties}
-               const options = {
-                  contentType: properties.contentType,
-                  metas: [
-                     [META_MQTT_TOPIC, topic],
-                     [META_MQTT_PROPERTIES, props]
-                  ]
-               }
-               node.in(payload, options)
+
+               const message = node.createMessage()
+
+               message.source = payload
+
+               message
+                  .setContentType(properties.contentType)
+                  .setHeaders({
+                     [META_MQTT_TOPIC]: topic,
+                     [META_MQTT_PROPERTIES]: props
+                  })
+
+               node.in(message)
             })
       })
       .on('stop', async () => {
          if ( connection ) {
             await new Promise((resolve, reject) => {
                connection.end(false, {}, resolve)
-               connection = null
             })
+            connection = null
          }
+      })
+      .on('up', async () => {
+         listening = true
+      })
+      .on('pause', async () => {
+         listening = false
+      })
+      .on('resume', async () => {
+         listening = true
       })
 }

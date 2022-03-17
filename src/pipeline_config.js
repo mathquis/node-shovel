@@ -1,8 +1,8 @@
-const File     = require('fs')
-const Path     = require('path')
-const YAML     = require('js-yaml')
-const Logger   = require('./logger')
-const Utils    = require('./utils')
+import File from 'fs'
+import Path from 'path'
+import YAML from 'js-yaml'
+import Logger from './logger.js'
+import Utils from './utils.js'
 
 const traverse = (obj, cb) => {
    for (let k in obj) {
@@ -13,7 +13,7 @@ const traverse = (obj, cb) => {
    }
 }
 
-class PipelineConfig {
+export default class PipelineConfig {
    constructor(pipelineFile) {
       this.file = Path.resolve(process.cwd(), pipelineFile)
 
@@ -26,7 +26,7 @@ class PipelineConfig {
 
    load() {
       try {
-         this.log.info('Loading pipeline configuration at "%s"', this.file)
+         this.log.debug('Loading pipeline configuration at "%s"', this.file)
          const config = YAML.load(File.readFileSync(this.file))
          traverse(config, (key, value) => {
             if ( value === null ) return value
@@ -85,5 +85,3 @@ class PipelineConfig {
       return this.config
    }
 }
-
-module.exports = PipelineConfig

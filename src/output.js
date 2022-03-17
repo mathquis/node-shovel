@@ -1,8 +1,9 @@
-const Path        = require('path')
-const Prometheus  = require('prom-client')
-const Node        = require('./node')
+import {fileURLToPath} from 'node:url';
+import Path from 'path'
+import Prometheus from 'prom-client'
+import Node from './node.js'
 
-class Output extends Node {
+export default class Output extends Node {
    get options() {
       return this.pipelineConfig.output || {}
    }
@@ -10,7 +11,7 @@ class Output extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(__dirname, './outputs')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './outputs')
       ]
    }
 
@@ -24,31 +25,27 @@ class Output extends Node {
       this.counter = new Prometheus.Counter({
          name: 'output_message',
          help: 'Number of output messages',
-         labelNames: ['pipeline', 'kind']
+         labelNames: ['pipeline', 'kind', 'type']
       })
    }
 
-   async out(message) {
-      throw new Error('Output node does not allow outbound message')
+   ack(message) {
+      this.out(message)
+      super.ack(message)
    }
 
-   async pause() {
-      if ( !this.isUp ) return
-      if ( this.isPaused ) return
-      this.isPaused = true
-      this.log.info('| Paused')
-      await this.emit('pause')
-      this.counter.inc({...this.defaultLabels, kind: 'pause'})
+   nack(message) {
+      this.out(message)
+      super.nack(message)
    }
 
-   async resume() {
-      if ( !this.isUp ) return
-      if ( !this.isPaused ) return
-      this.isPaused = false
-      this.log.info('> Resumed')
-      await this.emit('resume')
-      this.counter.inc({...this.defaultLabels, kind: 'resume'})
+   ignore(message) {
+      this.out(message)
+      super.ignore(message)
+   }
+
+   reject(message) {
+      this.out(message)
+      super.reject(message)
    }
 }
-
-module.exports = Output

@@ -1,8 +1,7 @@
 export default node => {
    node
-      .registerConfig({})
       .on('in', async (message) => {
-         process.stdout.write(message.payload + '\n')
+         console.log(message)
          node.ack(message)
       })
 }
