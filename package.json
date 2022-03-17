@@ -9,6 +9,10 @@
   "bin": {
     "shovel": "./src/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mathquis/node-shovel.git"
+  },
   "type": "module",
   "author": "Mathieu \"Fastjack\" Quisefit",
   "license": "ISC",
