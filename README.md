@@ -52,8 +52,7 @@ output:
   use: elasticsearch
   options:
     scheme: http
-    index_name: audit-events
-    index_shard: '{YYYY}' # YYYY, YY, MM, M, DD, D
+    index_name: audit-events-{YYYY}-{MM}
     template: template.js
     username: elastic
     password: password
@@ -68,6 +67,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - http-request
 - http-server
 - mqtt
+- noop
 - stdin
 - stream
 - syslog
@@ -81,14 +81,17 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - json
 - json5
 - multiline (WIP)
+- noop
 - protobuf
 
 ### Available encoders (optional)
 
 - base64
 - csv
+- format
 - json
 - json5
+- noop
 - protobuf
 
 ### Available queues (optional)
@@ -103,6 +106,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - elasticsearch
 - file
 - mqtt
+- pipeline
 - stdout
 - tcp
 - udp
