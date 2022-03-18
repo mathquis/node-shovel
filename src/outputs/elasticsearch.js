@@ -1,31 +1,24 @@
 import File from 'fs'
 import Path from 'path'
+import HTTP from 'http'
+import HTTPS from 'https'
 import {Client, errors} from '@elastic/elasticsearch'
+import Fetch from 'node-fetch'
 
 const META_INDEX_TEMPLATE = 'output-elasticsearch-index-name'
 const META_ERROR          = 'output-elasticsearch-error'
 
 export default node => {
-   let client, templateCreated, flushTimeout
+   let client, agent, templateCreated, flushTimeout
 
    let queue = []
 
    node
       .registerConfig({
-         scheme: {
-            doc: '',
-            format: ['http', 'https'],
-            default: 'https'
-         },
-         host: {
+         url: {
             doc: '',
             format: String,
-            default: 'localhost',
-         },
-         port: {
-            doc: '',
-            format: 'port',
-            default: 9200,
+            default: 'http://localhost:9200'
          },
          username: {
             doc: '',
@@ -38,7 +31,7 @@ export default node => {
             default: '',
             sensitive: true,
          },
-         ca: {
+         ca_file: {
             doc: '',
             format: String,
             default: '',
@@ -67,10 +60,25 @@ export default node => {
             doc: '',
             format: 'duration',
             default: '5s'
+         },
+         compat: {
+            doc: '',
+            format: Boolean,
+            default: false
+         },
+         document_type: {
+            doc: '',
+            format: String,
+            default: 'logs'
          }
       })
       .on('start', async () => {
-         setupClient()
+         if ( node.getConfig('compat') ) {
+            node.log.warn('Using compatibility mode')
+            setupAgent()
+         } else {
+            setupClient()
+         }
          try {
             await setupTemplate()
          } catch (err) {
@@ -132,45 +140,74 @@ export default node => {
 
       const st = (new Date()).getTime()
 
-      const {index_name: indexName} = node.getConfig()
+      const {
+         index_name: indexName,
+         compat,
+         document_type: documentType
+      } = node.getConfig()
 
       try {
-         const body = []
+         let response
+         if ( compat ) {
+            response = await request('POST', '/_bulk?filterPath=items.*.error,items.*._id', batch.reduce((body, message) => {
+               const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
+               return body + JSON.stringify({
+                  index: {
+                     _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+                     _type: documentType,
+                     _id: message.uuid
+                  }
+               }) + '\n' + JSON.stringify(message.content) + '\n'
+            }, ''))
 
-         batch.forEach(message => {
-            const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
-            body.push({
-               index: {
-                  _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
-                  _id: message.uuid
-               }
+            // Get messages in error
+            if ( response.errors ) {
+               response.items.forEach(({index: result}) => {
+                  if ( result.status >= 400 ) {
+                     node.log.warn(result.error)
+                     errorIds.set(result._id, result.error)
+                  }
+               })
+            }
+         } else {
+            const body = []
+
+            batch.forEach(message => {
+               const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
+               body.push({
+                  index: {
+                     _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+                     _id: message.uuid
+                  }
+               })
+               body.push(message.content)
             })
-            body.push(message.content)
-         })
 
-         const data = {
-            _source: ['uuid'],
-            body
+            const data = {
+               _source: ['uuid'],
+               body
+            }
+
+            response = await client.bulk(data, {
+               filterPath: 'items.*.error,items.*._id'
+            })
+
+            // Get messages in error
+            if ( response.errors ) {
+               response.items.forEach(({index: result}) => {
+                  if ( result.status >= 400 ) {
+                     node.log.warn(result.error.reason)
+                     errorIds.set(result._id, result.error.reason)
+                  }
+               })
+            }
          }
-         const response = await client.bulk(data, {
-            filterPath: 'items.*.error,items.*._id'
-         })
 
          const et = (new Date()).getTime()
 
          node.log.info('Flushed (messages: %d, time: %fms)', batch.length, et-st)
 
          node.up()
-
-         // Get messages in error
-         if ( response.errors ) {
-            response.items.forEach(({index: result}) => {
-               if ( result.status >= 400 ) {
-                  node.log.warn(result.error.reason)
-                  errorIds.set(result._id, result.error.reason)
-               }
-            })
-         }
 
       } catch (err) {
          node.error(err)
@@ -203,26 +240,29 @@ export default node => {
    function setupClient() {
       templateCreated = false
 
-      let {ca, scheme, host, port, username, password, reject_unauthorized} = node.getConfig()
+      let {
+         url,
+         username,
+         password,
+         ca_file,
+         reject_unauthorized: rejectUnauthorized
+      } = node.getConfig()
 
-      let caCert
-      if ( ca ) {
-         const caPath = Path.resolve(node.pipelineConfig.path, ca)
-         caCert = File.readFileSync(caPath)
-         if ( caCert ) {
-            scheme = https
-         }
+      let ca
+      if ( ca_file ) {
+         const caPath = Path.resolve(node.pipelineConfig.path, ca_file)
+         ca = File.readFileSync(caPath)
       }
 
       const opts = {
-         node: `${scheme}://${host}:${port}`,
+         node: url,
          auth: {
             username,
             password
          },
          ssl: {
-            ca: caCert,
-            rejectUnauthorized: reject_unauthorized
+            ca,
+            rejectUnauthorized
          }
       }
 
@@ -231,10 +271,27 @@ export default node => {
       client = new Client(opts)
    }
 
+   function setupAgent() {
+         const {ca_file, url} = node.getConfig()
+
+         let ca
+         if ( ca_file ) {
+            ca = loadIfExists(ca_file)
+         }
+
+         if ( url.match(/^https:/i) ) {
+            agent = new HTTPS.Agent({
+               cert: ca
+            })
+         } else {
+            agent = new HTTP.Agent({})
+         }
+   }
+
    async function setupTemplate() {
       if ( templateCreated ) return
 
-      const {template} = node.getConfig()
+      const {template, compat} = node.getConfig()
       if ( template ) {
          node.log.debug('Setting up template...')
 
@@ -260,10 +317,16 @@ export default node => {
 
          try {
             node.log.debug('Creating template...')
-            await client.indices.putTemplate({
-               name: tpl.name,
-               body: tpl.template
-            })
+            if ( compat ) {
+               const response = await request('PUT', `/_template/${tpl.name}`, tpl.template)
+               console.log(response)
+               // TODO: check response
+            } else {
+               await client.indices.putTemplate({
+                  name: tpl.name,
+                  body: tpl.template
+               })
+            }
             node.log.info('Created template')
          } catch (err) {
             throw new Error(`Unable to create template: ${err.message}`)
@@ -271,6 +334,33 @@ export default node => {
       }
 
       templateCreated = true
+   }
+
+   async function request(method, path, payload) {
+      let {url, username, password} = node.getConfig()
+
+      method = method.toUpperCase()
+      const headers = {}
+
+      // Authentification
+      if ( username ) {
+         const authorization = `${username}:${password}`
+         headers['Authorization'] = `Basic ${authorization.toString('base64')}`
+      }
+
+      const req = {
+         url: url + path,
+         method,
+         body: payload,
+         headers,
+         agent
+      }
+
+      node.log.debug('Requesting compatibility API endpoint (method: %s, url: %s)', req.method, req.url)
+
+      const response = await Fetch(req.url, req)
+
+      return await response.json()
    }
 
    function startFlushTimeout() {

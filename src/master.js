@@ -67,7 +67,7 @@ export default async (pipelineConfigs) => {
    Cluster
       .on('online', (worker) => {
          const pipelineConfig = workers.get(worker.id)
-         log.debug('Worker %d is online for pipeline "%s"', worker.id, pipelineConfig.name)
+         log.debug('Worker "%d" is online (pipeline: %s)', worker.id, pipelineConfig.name)
          numOnlineWorkers++
          workerGauge.inc({kind: 'online'})
          setTitle()

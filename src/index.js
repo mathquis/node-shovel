@@ -14,9 +14,9 @@ function loadPipeline(pipelinePath) {
       log.error(`Unknown pipeline "${pipelinePath}"`)
       process.exit(9)
    }
-   const pipelineConfig = new PipelineConfig(pipelinePath)
+   const pipelineConfig = new PipelineConfig()
    try {
-      pipelineConfig.load()
+      pipelineConfig.load(pipelinePath)
       log.debug('Loaded pipeline configuration from "%s"', pipelineConfig.file)
       return pipelineConfig
    } catch (err) {
