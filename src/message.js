@@ -5,7 +5,7 @@ const defaultContentType = Utils.parseContentType('application/octet-stream')
 
 export default class Message {
    constructor(data) {
-      this.setup(data)
+      this.setup({...data, uuid: undefined})
    }
 
    get uuid() {
@@ -51,7 +51,7 @@ export default class Message {
    setup(data) {
       data || (data = {})
       this._data = {
-         uuid:     Utils.CUID(),
+         uuid:     data.uuid || Utils.CUID(),
          date:     data.date || new Date(),
          headers:  new Map(Object.entries(data.headers || {})),
          source:   data.source || null,
