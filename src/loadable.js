@@ -8,6 +8,8 @@ export default class Loadable extends EventEmitter {
    constructor(pipelineConfig) {
       super()
 
+      this.isLoaded  = false
+
       this.pipelineConfig = pipelineConfig
       this.executorConfigSchema = {
          doc: '',
@@ -20,16 +22,15 @@ export default class Loadable extends EventEmitter {
 
       this.setupLogger()
 
-      this.kind = this.config.get('use')
-      if (!this.kind) {
-         throw new Error(`Missing node kind`)
-      }
-
       this.log.debug('%O', this.config.get('options'))
    }
 
    get util() {
       return Utils
+   }
+
+   get name() {
+      return this.config.get('use')
    }
 
    get options() {
@@ -54,13 +55,23 @@ export default class Loadable extends EventEmitter {
    }
 
    async load() {
-      this.loader = await Utils.loadFn(this.kind, this.includePaths)
+      if ( this.isLoaded ) {
+         return
+      }
+
+      if (!this.name) {
+         throw new Error(`Missing node kind`)
+      }
+
+      this.loader = await Utils.loadFn(this.name, this.includePaths)
 
       if ( typeof this.loader !== 'function' ) {
-         throw new Error(`Invalid node "${this.kind}" (not a function)`)
+         throw new Error(`Invalid node "${this.name}" (not a function)`)
       }
 
       this.loader(this)
+
+      this.isLoaded = true
 
       return this
    }
@@ -86,15 +97,11 @@ export default class Loadable extends EventEmitter {
    }
 
    setupLogger() {
-      const worker = Cluster.worker.id
+      const worker = Cluster.worker && Cluster.worker.id || 0
       const category = `${this.constructor.name}-${this.config.get('use')}`.replace(/(.)([A-Z])/g, (_, $1, $2) => {
          return $1 + '-' + $2.toLowerCase()
       }).toLowerCase()
 
       this.log = Logger.child({category, worker, pipeline: this.pipelineConfig.name})
-   }
-
-   help() {
-      return this.config.getSchema()
    }
 }

@@ -5,7 +5,7 @@ import Node from './node.js'
 
 export default class Output extends Node {
    get options() {
-      return this.pipelineConfig.output || {}
+      return this.pipelineConfig.output
    }
 
    get includePaths() {

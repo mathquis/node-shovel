@@ -17,7 +17,7 @@ export default class Pipeline extends Node {
    }
 
    get options() {
-      return this.pipelineConfig.pipeline || {}
+      return this.pipelineConfig.pipeline
    }
 
    get includePaths() {

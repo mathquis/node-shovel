@@ -1,3 +1,4 @@
+import Prometheus from 'prom-client'
 import Loadable from './loadable.js'
 import Message from './message.js'
 
@@ -5,10 +6,10 @@ export default class NodeOperator extends Loadable {
    constructor(pipelineConfig, protocol) {
       super(pipelineConfig)
 
-      this._protocol        = protocol
-      this.isStarted        = false
-      this.isUp             = false
-      this.isPaused         = false
+      this._protocol = protocol
+      this.isStarted = false
+      this.isUp      = false
+      this.isPaused  = false
 
       this.setupMonitoring()
    }
@@ -75,7 +76,6 @@ export default class NodeOperator extends Loadable {
 
    async start() {
       if ( this.isStarted ) return
-      await this.load()
       this.isStarted = true
       this.log.debug('Started')
       const results = await this.emit('start')
@@ -137,7 +137,7 @@ export default class NodeOperator extends Loadable {
    }
 
    async in(message) {
-      this.log.debug('<- IN %s', message || '')
+      this.log.debug('<- IN %s', message)
       this.counter.inc({...this.defaultLabels, kind: 'in'})
       try {
          await this.emit('in', message)
@@ -149,31 +149,31 @@ export default class NodeOperator extends Loadable {
    }
 
    out(message) {
-      this.log.debug('-> OUT %s', message || '')
+      this.log.debug('-> OUT %s', message)
       this.emit('out', message)
       this.counter.inc({...this.defaultLabels, kind: 'out'})
    }
 
    ack(message) {
-      this.log.debug('-+ ACK %s', message || '')
+      this.log.debug('-+ ACK %s', message)
       this.emit('ack', message)
       this.counter.inc({...this.defaultLabels, kind: 'acked'})
    }
 
    nack(message) {
-      this.log.debug('-X NACK %s', message || '')
+      this.log.debug('-X NACK %s', message)
       this.emit('nack', message)
       this.counter.inc({...this.defaultLabels, kind: 'nacked'})
    }
 
    ignore(message) {
-      this.log.debug('-- IGNORE %s', message || '')
+      this.log.debug('-- IGNORE %s', message)
       this.emit('ignore', message)
       this.counter.inc({...this.defaultLabels, kind: 'ignored'})
    }
 
    reject(message) {
-      this.log.debug('-! REJECT %s', message || '')
+      this.log.debug('-! REJECT %s', message)
       this.emit('reject', message)
       this.counter.inc({...this.defaultLabels, kind: 'rejected'})
    }

@@ -12,7 +12,7 @@ export default class Decoder extends Node {
    }
 
    get options() {
-      return this.pipelineConfig.decoder || {}
+      return this.pipelineConfig.decoder
    }
 
    get configSchema() {

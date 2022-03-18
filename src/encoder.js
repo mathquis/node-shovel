@@ -12,7 +12,7 @@ export default class Encoder extends Node {
    }
 
    get options() {
-      return this.pipelineConfig.encoder || {}
+      return this.pipelineConfig.encoder
    }
 
    get configSchema() {

@@ -5,19 +5,9 @@ import Node from './node.js'
 import Message from './message.js'
 
 export default class Input extends Node {
-   get configSchema() {
-      return {
-         ...super.configSchema,
-         split: {
-            doc: '',
-            format: Boolean,
-            default: true
-         }
-      }
-   }
 
    get options() {
-      return this.pipelineConfig.input || {}
+      return this.pipelineConfig.input
    }
 
    get includePaths() {

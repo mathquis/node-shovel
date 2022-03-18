@@ -95,11 +95,8 @@ export default class Processor {
 
    async setupInput() {
       this.log.debug('Setting up input')
-      try {
-         this.input = new Input(this.pipelineConfig, this.protocol)
-      } catch (err) {
-         this.log.error(err)
-      }
+      this.input = new Input(this.pipelineConfig, this.protocol)
+      await this.input.load()
       this.input
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
@@ -129,6 +126,7 @@ export default class Processor {
    async setupDecoder() {
       this.log.debug('Setting up decoder')
       this.decoder = new Decoder(this.pipelineConfig, this.protocol)
+      await this.decoder.load()
       this.decoder
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
@@ -138,6 +136,7 @@ export default class Processor {
    async setupPipeline() {
       this.log.debug('Setting up pipeline')
       this.pipeline = new Pipeline(this.pipelineConfig, this.protocol)
+      await this.pipeline.load()
       this.pipeline
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
@@ -147,6 +146,7 @@ export default class Processor {
    async setupEncoder() {
       this.log.debug('Setting up encoder')
       this.encoder = new Encoder(this.pipelineConfig, this.protocol)
+      await this.encoder.load()
       this.encoder
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
@@ -156,6 +156,7 @@ export default class Processor {
    async setupQueue() {
       this.log.debug('Setting up queue')
       this.queue = new Queue(this.pipelineConfig, this.protocol)
+      await this.queue.load()
       this.queue
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
@@ -165,6 +166,7 @@ export default class Processor {
    async setupOutput() {
       this.log.debug('Setting up output')
       this.output = new Output(this.pipelineConfig, this.protocol)
+      await this.output.load()
       this.output
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})

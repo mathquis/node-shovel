@@ -1,6 +1,8 @@
 import File from 'fs'
 import Path from 'path'
 import YAML from 'js-yaml'
+import Convict from 'convict'
+import Config from './config.js'
 import Logger from './logger.js'
 import Utils from './utils.js'
 
@@ -15,19 +17,29 @@ const traverse = (obj, cb) => {
 
 export default class PipelineConfig {
    constructor(pipelineFile) {
-      this.file = Path.resolve(process.cwd(), pipelineFile)
+      this.config = {}
+      this.file = process.cwd()
 
-    const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
-      return $1 + '-' + $2.toLowerCase()
-    }).toLowerCase()
+      const type = this.constructor.name.replace(/(.)([A-Z])/g, (_, $1, $2) => {
+         return $1 + '-' + $2.toLowerCase()
+      }).toLowerCase()
 
-    this.log = Logger.child({category: type})
+      this.log = Logger.child({category: type})
    }
 
-   load() {
+   load(pipelineFile) {
       try {
+         this.file = Path.resolve(process.cwd(), pipelineFile)
          this.log.debug('Loading pipeline configuration at "%s"', this.file)
          const config = YAML.load(File.readFileSync(this.file))
+         this.set(config)
+      } catch (err) {
+         this.log.error(err.stack)
+         throw new Error(`Invalid pipeline "${this.file}" (${err.message})`)
+      }
+   }
+
+   set(config) {
          traverse(config, (key, value) => {
             if ( value === null ) return value
             if ( typeof value === 'object' && value !== null ) return value
@@ -39,10 +51,6 @@ export default class PipelineConfig {
                })
          })
          this.config = config
-      } catch (err) {
-         this.log.error(err.stack)
-         throw new Error(`Invalid pipeline "${this.file}" (${err.message}`)
-      }
    }
 
    get path() {

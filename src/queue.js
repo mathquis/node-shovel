@@ -16,7 +16,7 @@ export default class Queue extends Node {
    }
 
    get options() {
-      return this.pipelineConfig.queue || {}
+      return this.pipelineConfig.queue
    }
 
    get includePaths() {
@@ -40,16 +40,9 @@ export default class Queue extends Node {
       })
    }
 
-   flush(message) {
-      this.log.debug('>> FLUSH %s', message || '')
-      this.emit('flush', message)
-      // this.counter.inc({...this.defaultLabels, kind: 'batch'})
-      this.counter.inc({...this.defaultLabels, kind: 'flush'})
-   }
-
    evict(message) {
-      this.log.debug('// EVICTED %s', message || '')
-      this.emit('evicted', message)
+      this.log.debug('// EVICTED %s', message)
+      this.emit('evict', message)
       this.counter.inc({...this.defaultLabels, kind: 'evicted'})
    }
 }

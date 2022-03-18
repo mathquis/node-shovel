@@ -1,22 +1,22 @@
 import Colorize from 'json-colorizer'
 
-export default node => {
-	const colorOptions = {
-		colors: {
-			STRING_KEY: 'cyan',
-			STRING_LITERAL: 'whiteBright',
-			NUMBER_LITERAL: 'yellow',
-			NULL_LITERAL: 'redBright',
-			BOOLEAN_LITERAL: 'greenBright'
-		}
+export	const colorOptions = {
+	colors: {
+		STRING_KEY: 'cyan',
+		STRING_LITERAL: 'whiteBright',
+		NUMBER_LITERAL: 'yellow',
+		NULL_LITERAL: 'redBright',
+		BOOLEAN_LITERAL: 'greenBright'
 	}
+}
 
+export default node => {
 	node
 		.registerConfig({
 			pretty: {
 				doc: '',
-				default: true,
-				format: Boolean
+				format: Boolean,
+				default: false
 			},
 			colorize: {
 				doc: '',

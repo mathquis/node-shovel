@@ -1,0 +1,25 @@
+name: pipeline
+workers: 3
+
+input:
+  use: noop
+  options:
+
+decoder:
+  use: noop
+  options:
+
+pipeline:
+  options:
+
+encoder:
+  use: noop
+  options:
+
+queue:
+  use: noop
+  options:
+
+output:
+  use: noop
+  options:

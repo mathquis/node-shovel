@@ -4,7 +4,18 @@
   "description": "Shovel messages from here to there",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --no-warnings --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --verbose"
+  },
+  "jest": {
+    "testMatch": [
+      "<rootDir>/tests/**/*.[jt]s?(x)"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/tests/assets/*",
+      "<rootDir>/tests/setup.js",
+      "<rootDir>/tests/utils.js"
+    ]
   },
   "bin": {
     "shovel": "./src/cli.js"
@@ -50,5 +61,8 @@
     "tail": "^2.2.4",
     "whatwg-mimetype": "^3.0.0",
     "winston": "^3.6.0"
+  },
+  "devDependencies": {
+    "jest": "^27.5.1"
   }
 }
