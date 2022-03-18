@@ -12,12 +12,12 @@ import Logger from './logger.js'
 const log = Logger.child({category: 'utils'})
 
 async function loadFn(fn, paths = []) {
-   // let modulePath
-   // try {
-   //    modulePath = require.resolve(fn)
-   // } catch (err) {
-   //    log.debug('Function "%s" is not a Node.js module', fn)
-   // }
+   try {
+      moduleImport = await import(fn)
+      return moduleImport.default
+   } catch (err) {
+      log.debug('Function "%s" is not a Node.js module', fn)
+   }
    try {
       const searchPaths = [
          ...paths.map(p => Path.resolve(p) + Path.sep + fn)

@@ -18,7 +18,14 @@ export default node => {
       .on('in', async (message) => {
          const {pipelines, mode} = node.getConfig()
          message.setHeader(META_ORIGIN_PIPELINE, node.pipelineConfig.name)
-         node.protocol.message(pipelines, mode, message)
+         switch ( mode ) {
+            case 'broadcast':
+               node.broadcast(pipelines, message)
+               break
+            case 'fanout':
+               node.fanout(pipelines, message)
+               break
+         }
          node.ack(message)
       })
 }

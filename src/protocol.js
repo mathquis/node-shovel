@@ -63,13 +63,23 @@ export class WorkerProtocol {
 			signal
 		})
 	}
-	message(pipelines, mode, message) {
-		this.log.debug('Sending message to pipelines "%s" (mode: %s)', pipelines.join(','), mode)
+	broadcast(pipelines, message) {
+		this.log.debug('Sending message to pipelines "%s" (mode: broadcast)', pipelines.join(','))
 		process.send({
 			type: Event.MESSAGE,
 			workerId: Cluster.worker.id,
 			pipelines,
-			mode,
+			mode: 'broadcast',
+			message
+		})
+	}
+	fanout(pipelines, message) {
+		this.log.debug('Sending message to pipelines "%s" (mode: fanout)', pipelines.join(','))
+		process.send({
+			type: Event.MESSAGE,
+			workerId: Cluster.worker.id,
+			pipelines,
+			mode: 'fanout',
 			message
 		})
 	}

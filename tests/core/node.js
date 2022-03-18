@@ -33,12 +33,14 @@ describe('Node', () => {
 		expect(node.isUp).toBeFalsy()
 		expect(node.isPaused).toBeFalsy()
 
-		expect(node.protocol).toBeInstanceOf(WorkerProtocol)
-		expect(node.protocol).toBe(protocol)
+		expect(node.name).toEqual('')
+		expect(node.options).toEqual({})
+		expect(node.includePaths).toEqual([pipelineConfig.path])
+
+		// expect(node.protocol).toBeInstanceOf(WorkerProtocol)
+		// expect(node.protocol).toBe(protocol)
 
 		expect(node.defaultLabels).toEqual({pipeline: pipelineConfig.name})
-
-		expect(node.includePaths).toEqual([pipelineConfig.path])
 
 		expect(node.createMessage()).toBeInstanceOf(Message)
 
@@ -46,6 +48,21 @@ describe('Node', () => {
 		node.shutdown()
 		expect(mockEmit).toHaveBeenCalledTimes(1)
 		mockEmit.mockRestore()
+
+	})
+
+	test('load', async () => {
+		expect.assertions(2)
+
+		const node = new Node(pipelineConfig, protocol)
+
+		const fnName = './fn.js'
+		node.config.set('use', fnName)
+
+		await node.load()
+
+		expect(node.name).toEqual(fnName)
+		expect(node.isLoaded).toBeTruthy()
 	})
 
 	test('start: listener', async () => {
@@ -250,7 +267,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('in', listener)
@@ -266,7 +283,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const err = new Error()
 
@@ -293,7 +310,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('out', listener)
@@ -309,7 +326,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('ack', listener)
@@ -325,7 +342,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('nack', listener)
@@ -341,7 +358,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('ignore', listener)
@@ -357,7 +374,7 @@ describe('Node', () => {
 
 		const node = new Node(pipelineConfig, protocol)
 
-		const message = node.createMessage()
+		const message = new Message()
 
 		const listener = jest.fn()
 		node.on('reject', listener)
@@ -383,7 +400,7 @@ describe('Node', () => {
 		expect(listener).toHaveBeenCalledWith(error)
 
 		const errorWithOrigin = new Error()
-		const message = node.createMessage()
+		const message = new Message()
 		errorWithOrigin.origin = message
 
 		await node.error(errorWithOrigin)
@@ -393,7 +410,7 @@ describe('Node', () => {
 	})
 
 	test('pipe', async () => {
-		expect.assertions(23)
+		expect.assertions(24)
 
 		const node1 = new Node(pipelineConfig, protocol)
 
@@ -422,7 +439,9 @@ describe('Node', () => {
 		const listenerResume = jest.fn()
 		node1.on('resume', listenerResume)
 
-		node1.pipe(node2)
+		const returnValue = node1.pipe(node2)
+
+		expect(returnValue).toBe(node2)
 
 		const message = node1.createMessage()
 

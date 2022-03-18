@@ -1,25 +1,144 @@
+import Cluster from 'cluster'
+import Convict from 'convict'
+import EventEmitter from 'events-async'
 import Prometheus from 'prom-client'
-import Loadable from './loadable.js'
+import Logger from './logger.js'
+import Utils from './utils.js'
+// import Loadable from './loadable.js'
 import Message from './message.js'
 
-export default class NodeOperator extends Loadable {
+export default class NodeOperator extends EventEmitter {
    constructor(pipelineConfig, protocol) {
-      super(pipelineConfig)
+      super()
 
-      this._protocol = protocol
+      this.isLoaded  = false
       this.isStarted = false
       this.isUp      = false
       this.isPaused  = false
 
+
+      this.pipelineConfig = pipelineConfig
+      this.executorConfigSchema = {
+         doc: '',
+         format: 'options',
+         default: {},
+         nullable: true
+      }
+
+      this.protocol = protocol
+
+      this.log = this.createLogger(this.constructor.name)
+
+      this.configure(this.options)
+
+      this.log.debug('%O', this.config.get('options'))
+
       this.setupMonitoring()
+   }
+
+   get name() {
+      return this.config.get('use')
+   }
+
+   get options() {
+      return {}
+   }
+
+   get includePaths() {
+      return [this.pipelineConfig.path]
+   }
+
+   get configSchema() {
+      return {
+         use: {
+            doc: '',
+            format: String,
+            default: ''
+         },
+         options: {
+            ...this.executorConfigSchema
+         }
+      }
    }
 
    get defaultLabels() {
       return {pipeline: this.pipelineConfig.name}
    }
 
-   get protocol() {
-      return this._protocol
+   get api() {
+      const log = this.createLogger(`${this.constructor.name}[${this.name}]`)
+
+      const api = {
+         // Logging
+         log,
+
+         // Configuration
+         pipelineConfig: this.pipelineConfig,
+         registerConfig: (schema) => {
+            this.executorConfigSchema = schema
+            this.configure(this.options)
+            return api
+         },
+         getConfig: key => {
+            if ( !key ) {
+               return this.config.get('options')
+            }
+            return this.config.get('options.' + key)
+         },
+
+         // Helpers
+         util: Utils,
+         createMessage: (data) => {
+            return new Message(data)
+         },
+
+         // Events
+         on: (event, handler) => {
+            this.on(event, handler)
+            return api
+         },
+         once: (event, handler) => {
+            this.once(event, handler)
+            return api
+         },
+         off: (event, handler) => {
+            this.off(event, handler)
+            return api
+         },
+
+         // Interface
+         start: () => this.start(),
+         stop: () => this.stop(),
+         shutdown: () => this.shutdown(),
+         up: () => this.up(),
+         down: () => this.down(),
+         pause: () => this.pause(),
+         resume: () => this.resume(),
+         in: (message) => this.in(message),
+         out: (message) => this.out(message),
+         ack: (message) => this.ack(message),
+         nack: (message) => this.nack(message),
+         ignore: (message) => this.ignore(message),
+         reject: (message) => this.reject(message),
+         error: (err, message) => this.error(err, message),
+         broadcast: (pipelines, message) => {
+            this.protocol.broadcast(pipelines, message)
+         },
+         fanout: (pipelines, message) => {
+            this.protocol.fanout(pipelines, message)
+         }
+      }
+
+      return api
+   }
+
+   createLogger(categoryName) {
+      const worker = Cluster.worker && Cluster.worker.id || 0
+      const category = categoryName.replace(/(.)([A-Z])/g, (_, $1, $2) => {
+         return $1 + '-' + $2.toLowerCase()
+      }).toLowerCase()
+
+      return Logger.child({category, worker, pipeline: this.pipelineConfig.name})
    }
 
    setupMonitoring() {
@@ -34,6 +153,35 @@ export default class NodeOperator extends Loadable {
          help: 'Number of messages',
          labelNames: ['pipeline', 'kind', 'type']
       })
+   }
+
+   async load() {
+      if ( this.isLoaded ) {
+         return
+      }
+
+      if (!this.name) {
+         throw new Error(`Missing node kind`)
+      }
+
+      this.loader = await Utils.loadFn(this.name, this.includePaths)
+
+      if ( typeof this.loader !== 'function' ) {
+         throw new Error(`Invalid node "${this.name}" (not a function)`)
+      }
+
+      this.loader(this.api)
+
+      this.isLoaded = true
+
+      return this
+   }
+
+   configure(config) {
+      config.options || (config.options = {})
+      this.config = Convict(this.configSchema || {})
+      this.config.load(config)
+      this.config.validate({allowed: 'strict'})
    }
 
    createMessage(data) {
