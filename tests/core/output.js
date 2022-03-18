@@ -33,4 +33,88 @@ describe('Output', () => {
 		expect(node.options).toBe(pipelineConfig.output)
 		expect(node.includePaths).toEqual([pipelineConfig.path, Path.resolve('./src/outputs/')])
 	})
+
+	test('ack: listener', async () => {
+		expect.assertions(4)
+
+		const node = new Output(pipelineConfig, protocol)
+
+		const message = node.createMessage()
+
+		const listenerAck = jest.fn()
+		node.on('ack', listenerAck)
+		const listenerOut = jest.fn()
+		node.on('out', listenerOut)
+		await node.start()
+		await node.ack(message)
+
+		expect(listenerAck).toHaveBeenCalledTimes(1)
+		expect(listenerAck).toHaveBeenCalledWith(message)
+
+		expect(listenerOut).toHaveBeenCalledTimes(1)
+		expect(listenerOut).toHaveBeenCalledWith(message)
+	})
+
+	test('nack: listener', async () => {
+		expect.assertions(4)
+
+		const node = new Output(pipelineConfig, protocol)
+
+		const message = node.createMessage()
+
+		const listenerNack = jest.fn()
+		node.on('nack', listenerNack)
+		const listenerOut = jest.fn()
+		node.on('out', listenerOut)
+		await node.start()
+		await node.nack(message)
+
+		expect(listenerNack).toHaveBeenCalledTimes(1)
+		expect(listenerNack).toHaveBeenCalledWith(message)
+
+		expect(listenerOut).toHaveBeenCalledTimes(1)
+		expect(listenerOut).toHaveBeenCalledWith(message)
+	})
+
+	test('ignore: listener', async () => {
+		expect.assertions(4)
+
+		const node = new Output(pipelineConfig, protocol)
+
+		const message = node.createMessage()
+
+		const listenerIgnore = jest.fn()
+		node.on('ignore', listenerIgnore)
+		const listenerOut = jest.fn()
+		node.on('out', listenerOut)
+		await node.start()
+		await node.ignore(message)
+
+		expect(listenerIgnore).toHaveBeenCalledTimes(1)
+		expect(listenerIgnore).toHaveBeenCalledWith(message)
+
+		expect(listenerOut).toHaveBeenCalledTimes(1)
+		expect(listenerOut).toHaveBeenCalledWith(message)
+	})
+
+	test('reject: listener', async () => {
+		expect.assertions(4)
+
+		const node = new Output(pipelineConfig, protocol)
+
+		const message = node.createMessage()
+
+		const listenerReject = jest.fn()
+		node.on('reject', listenerReject)
+		const listenerOut = jest.fn()
+		node.on('out', listenerOut)
+		await node.start()
+		await node.reject(message)
+
+		expect(listenerReject).toHaveBeenCalledTimes(1)
+		expect(listenerReject).toHaveBeenCalledWith(message)
+
+		expect(listenerOut).toHaveBeenCalledTimes(1)
+		expect(listenerOut).toHaveBeenCalledWith(message)
+	})
 })
