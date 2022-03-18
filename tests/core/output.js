@@ -56,7 +56,7 @@ describe('Output', () => {
 	})
 
 	test('nack: listener', async () => {
-		expect.assertions(4)
+		expect.assertions(3)
 
 		const node = new Output(pipelineConfig, protocol)
 
@@ -72,8 +72,7 @@ describe('Output', () => {
 		expect(listenerNack).toHaveBeenCalledTimes(1)
 		expect(listenerNack).toHaveBeenCalledWith(message)
 
-		expect(listenerOut).toHaveBeenCalledTimes(1)
-		expect(listenerOut).toHaveBeenCalledWith(message)
+		expect(listenerOut).toHaveBeenCalledTimes(0)
 	})
 
 	test('ignore: listener', async () => {

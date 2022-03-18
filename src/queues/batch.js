@@ -6,6 +6,7 @@ import LevelMem	from 'level-mem'
 import {unpack, pack} from 'msgpackr'
 
 const META_QUEUE_RETRIES	= 'queue-retries'
+const META_QUEUE_STORED		= 'queue-stored'
 
 export default node => {
 	const batches = []
@@ -134,6 +135,8 @@ export default node => {
 			}
 			addToQueue(message)
 			addToDb(message)
+			node.ack(message)
+			message.setHeader(META_QUEUE_STORED, true)
 			if ( checkForFlush() ) {
 				flush()
 			}
@@ -146,6 +149,9 @@ export default node => {
 			checkForFlush()
 		})
 		.on('ack', async (message) => {
+			if ( !message.getHeader(META_QUEUE_STORED) ) {
+				return
+			}
 			removeFromDb(message)
 		})
 		.on('ignore', async (message) => {

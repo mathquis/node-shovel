@@ -108,6 +108,11 @@ const config = Convict({
          default: 3001,
          arg: 'metrics-port',
          env: 'SERVICE_METRICS_PORT'
+      },
+      refresh: {
+         doc: '',
+         format: 'duration',
+         default: '10s'
       }
    }
 })

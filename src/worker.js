@@ -12,6 +12,27 @@ import Utils from './utils.js'
 export default async (pipelineConfig) => {
    let pipeline, protocol
 
+   async function exitHandler(code) {
+      // Nothing
+   }
+
+   [
+      'beforeExit',
+      'uncaughtException',
+      'unhandledRejection',
+      'SIGHUP',
+      'SIGINT',
+      'SIGQUIT',
+      'SIGILL',
+      'SIGTRAP',
+      'SIGABRT','SIGBUS',
+      'SIGFPE',
+      'SIGUSR1',
+      'SIGSEGV',
+      'SIGUSR2',
+      'SIGTERM'
+   ].forEach(exitEvent => process.on(exitEvent, exitHandler))
+
    const log = Logger.child({category: 'worker', pipeline: pipelineConfig.name, worker: Cluster.worker.id})
 
    try {
@@ -22,27 +43,6 @@ export default async (pipelineConfig) => {
       protocol = new Protocol()
 
       pipeline = new Processor(pipelineConfig, protocol)
-
-      async function exitHandler(code) {
-         // Nothing
-      }
-
-      [
-         'beforeExit',
-         'uncaughtException',
-         'unhandledRejection',
-         'SIGHUP',
-         'SIGINT',
-         'SIGQUIT',
-         'SIGILL',
-         'SIGTRAP',
-         'SIGABRT','SIGBUS',
-         'SIGFPE',
-         'SIGUSR1',
-         'SIGSEGV',
-         'SIGUSR2',
-         'SIGTERM'
-      ].forEach(exitEvent => process.on(exitEvent, exitHandler))
 
       process
          .on('message', async ({type, message}) => {
@@ -63,6 +63,8 @@ export default async (pipelineConfig) => {
             log.error(err)
             stop(9)
          })
+
+      await pipeline.load()
 
       await pipeline.start()
 

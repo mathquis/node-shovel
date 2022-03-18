@@ -14,6 +14,8 @@ const registers = []
 
 export default class Processor {
    constructor(pipelineConfig, protocol) {
+      this.isLoaded = false
+
       this.pipelineConfig = pipelineConfig
       this.protocol = protocol
 
@@ -39,13 +41,6 @@ export default class Processor {
       this.setupEncoder()
       this.setupQueue()
       this.setupOutput()
-
-      this.input
-         .pipe(this.decoder)
-         .pipe(this.pipeline)
-         .pipe(this.encoder)
-         .pipe(this.queue)
-         .pipe(this.output)
    }
 
    get defaultLabels() {
@@ -67,7 +62,13 @@ export default class Processor {
       return this.globalMessage.get()
    }
 
-   async start() {
+   async load() {
+      if ( this.isLoaded ) {
+         return
+      }
+
+      this.isLoaded = true
+
       await this.input.load()
       await this.decoder.load()
       await this.pipeline.load()
@@ -75,6 +76,15 @@ export default class Processor {
       await this.queue.load()
       await this.output.load()
 
+      this.input
+         .pipe(this.decoder)
+         .pipe(this.pipeline)
+         .pipe(this.encoder)
+         .pipe(this.queue)
+         .pipe(this.output)
+   }
+
+   async start() {
       await this.output.start()
       await this.queue.start()
       await this.encoder.start()
@@ -171,6 +181,9 @@ export default class Processor {
       this.output
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
+         })
+         .on('out', message => {
+            this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
          })
    }
 }

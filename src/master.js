@@ -10,7 +10,7 @@ import AggregatorRegistry from './aggregated_metrics.js'
 import Utils from './utils.js'
 
 export default async (pipelineConfigs) => {
-   let stopTimeout, aggregatedRegistry
+   let stopTimeout, titleTimeout, aggregatedRegistry
 
    const log = Logger.child({category: 'master'})
 
@@ -70,7 +70,7 @@ export default async (pipelineConfigs) => {
          log.debug('Worker "%d" is online (pipeline: %s)', worker.id, pipelineConfig.name)
          numOnlineWorkers++
          workerGauge.inc({kind: 'online'})
-         setTitle()
+         startTitleTimeout()
       })
       .on('disconnect', (worker) => {
          log.debug('Worker "%s" has disconnected', worker.id)
@@ -90,7 +90,6 @@ export default async (pipelineConfigs) => {
          } else {
             log.info('Worker "%s" stopped (pipeline: %s, pid: %s)', worker.id, pipelineConfig.name, worker.process.pid)
          }
-         setTitle()
          if ( code === 9 ) {
             log.debug('Starting a new worker...')
             fork(pipelineConfig)
@@ -129,10 +128,34 @@ export default async (pipelineConfigs) => {
       log.info(`Prometheus metrics available on "${Config.get('metrics.route')}" (port: ${Config.get('metrics.port')})`)
    }
 
+   process.title = 'Shovel (in: 0)'
+
    // *****
 
-   function setTitle(title) {
-      process.title = title || `Shovel (workers: ${workers.size})`
+   async function updateTitle() {
+      const aggregatedRegistry = await registry.clusterMetrics({
+         registries: [Prometheus.register]
+      })
+      const processedMessages = await aggregatedRegistry.getSingleMetric('message_processed')
+      const metric = await processedMessages.get()
+      const valueIn = ( metric.values.find(dim => dim.labels.kind === 'in') || {} ).value || 0
+      const valueOut = ( metric.values.find(dim => dim.labels.kind === 'out') || {} ).value || 0
+      process.title = `Shovel (${valueOut} / ${valueIn})`
+   }
+
+   function startTitleTimeout() {
+      stopTitleTimeout()
+      titleTimeout = setTimeout(async () => {
+         await updateTitle()
+         startTitleTimeout()
+      }, Config.get('metrics.refresh'))
+   }
+
+   function stopTitleTimeout() {
+      if ( titleTimeout ) {
+         clearTimeout(titleTimeout)
+         titleTimeout = null
+      }
    }
 
    async function requestStop(callback) {
@@ -154,6 +177,8 @@ export default async (pipelineConfigs) => {
          clearTimeout(stopTimeout)
          stopTimeout = null
       }
+
+      stopTitleTimeout()
 
       Object.entries(processed).forEach(([key, metrics]) => {
          log.info('Processed (pipeline: %s, workers: %d, in: %d, acked: %d, nacked: %d, ignored: %d, rejected: %d)', key, metrics.workers, metrics.in, metrics.acked, metrics.nacked, metrics.ignored, metrics.rejected)

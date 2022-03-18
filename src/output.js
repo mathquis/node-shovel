@@ -34,11 +34,6 @@ export default class Output extends Node {
       super.ack(message)
    }
 
-   nack(message) {
-      this.out(message)
-      super.nack(message)
-   }
-
    ignore(message) {
       this.out(message)
       super.ignore(message)
