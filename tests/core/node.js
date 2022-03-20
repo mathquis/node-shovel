@@ -65,13 +65,28 @@ describe('Node', () => {
 		expect(node.isLoaded).toBeTruthy()
 	})
 
+	test('load: invalid', async () => {
+		expect.assertions(1)
+
+		const node = new Node(pipelineConfig, protocol)
+
+		const fnName = './fn-fail.js'
+		node.config.set('use', fnName)
+
+		try {
+			await node.load()
+		} catch (err) {
+			expect(err).toBeInstanceOf(Error)
+		}
+	})
+
 	test('start: listener', async () => {
 		expect.assertions(5)
 
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('start', listener)
+		node.on(Node.Event.START, listener)
 		await node.start()
 
 		expect(node.isStarted).toBeTruthy()
@@ -90,7 +105,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('up', listener)
+		node.on(Node.Event.UP, listener)
 
 		await node.start()
 
@@ -105,7 +120,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('stop', listener)
+		node.on(Node.Event.STOP, listener)
 		await node.start()
 		await node.stop()
 
@@ -126,7 +141,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('down', listener)
+		node.on(Node.Event.DOWN, listener)
 		await node.start()
 		await node.stop()
 
@@ -147,7 +162,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('up', listener)
+		node.on(Node.Event.UP, listener)
 		await node.start()
 
 		expect(node.isStarted).toBeTruthy()
@@ -167,7 +182,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('down', listener)
+		node.on(Node.Event.DOWN, listener)
 		await node.start()
 		await node.down()
 
@@ -188,7 +203,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('pause', listener)
+		node.on(Node.Event.PAUSE, listener)
 		await node.start()
 		await node.pause()
 
@@ -209,7 +224,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('resume', listener)
+		node.on(Node.Event.RESUME, listener)
 		await node.start()
 		await node.pause()
 		await node.resume()
@@ -231,7 +246,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('pause', listener)
+		node.on(Node.Event.PAUSE, listener)
 		await node.start()
 		await node.down()
 		await node.pause()
@@ -248,7 +263,7 @@ describe('Node', () => {
 		const node = new Node(pipelineConfig, protocol)
 
 		const listener = jest.fn()
-		node.on('resume', listener)
+		node.on(Node.Event.RESUME, listener)
 		await node.start()
 		await node.pause()
 		await node.down()
@@ -268,7 +283,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('in', listener)
+		node.on(Node.Event.IN, listener)
 		await node.start()
 		await node.in(message)
 
@@ -290,9 +305,9 @@ describe('Node', () => {
 		}
 		const listener = jest.fn()
 		const rejecter = jest.fn()
-		node.on('in', thrower)
-		node.on('error', listener)
-		node.on('reject', rejecter)
+		node.on(Node.Event.IN, thrower)
+		node.on(Node.Event.ERROR, listener)
+		node.on(Node.Event.REJECT, rejecter)
 		await node.start()
 		await node.in(message)
 
@@ -311,7 +326,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('out', listener)
+		node.on(Node.Event.OUT, listener)
 		await node.start()
 		await node.out(message)
 
@@ -327,7 +342,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('ack', listener)
+		node.on(Node.Event.ACK, listener)
 		await node.start()
 		await node.ack(message)
 
@@ -343,7 +358,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('nack', listener)
+		node.on(Node.Event.NACK, listener)
 		await node.start()
 		await node.nack(message)
 
@@ -359,7 +374,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('ignore', listener)
+		node.on(Node.Event.IGNORE, listener)
 		await node.start()
 		await node.ignore(message)
 
@@ -375,7 +390,7 @@ describe('Node', () => {
 		const message = new Message()
 
 		const listener = jest.fn()
-		node.on('reject', listener)
+		node.on(Node.Event.REJECT, listener)
 		await node.start()
 		await node.reject(message)
 
@@ -391,7 +406,7 @@ describe('Node', () => {
 		const error = new Error()
 
 		const listener = jest.fn()
-		node.on('error', listener)
+		node.on(Node.Event.ERROR, listener)
 		await node.error(error)
 
 		expect(listener).toHaveBeenCalledTimes(1)
@@ -416,25 +431,25 @@ describe('Node', () => {
 		const node2 = new Node(pipelineConfig, protocol)
 
 		const listenerIn = jest.fn()
-		node2.on('in', listenerIn)
+		node2.on(Node.Event.IN, listenerIn)
 
 		const listenerAck = jest.fn()
-		node1.on('ack', listenerAck)
+		node1.on(Node.Event.ACK, listenerAck)
 
 		const listenerNack = jest.fn()
-		node1.on('nack', listenerNack)
+		node1.on(Node.Event.NACK, listenerNack)
 
 		const listenerIgnore = jest.fn()
-		node1.on('ignore', listenerIgnore)
+		node1.on(Node.Event.IGNORE, listenerIgnore)
 
 		const listenerReject = jest.fn()
-		node1.on('reject', listenerReject)
+		node1.on(Node.Event.REJECT, listenerReject)
 
 		const listenerPause = jest.fn()
-		node1.on('pause', listenerPause)
+		node1.on(Node.Event.PAUSE, listenerPause)
 
 		const listenerResume = jest.fn()
-		node1.on('resume', listenerResume)
+		node1.on(Node.Event.RESUME, listenerResume)
 
 		const returnValue = node1.pipe(node2)
 

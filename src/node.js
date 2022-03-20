@@ -5,6 +5,7 @@ import Prometheus from 'prom-client'
 import Logger from './logger.js'
 import Utils from './utils.js'
 // import Loadable from './loadable.js'
+import { NodeEvent } from './event.js'
 import Message from './message.js'
 
 export default class NodeOperator extends EventEmitter {
@@ -66,12 +67,18 @@ export default class NodeOperator extends EventEmitter {
       return {pipeline: this.pipelineConfig.name}
    }
 
+   static get Event() {
+      return NodeEvent
+   }
+
    get api() {
       const log = this.createLogger(`${this.constructor.name}[${this.name}]`)
 
       const api = {
          // Logging
          log,
+
+         Event: NodeEvent,
 
          // Configuration
          pipelineConfig: this.pipelineConfig,
@@ -109,56 +116,56 @@ export default class NodeOperator extends EventEmitter {
 
          // Interface
          onStart: handler => {
-            this.onEmitter('start', handler)
+            this.onEmitter(NodeEvent.START, handler)
          },
          start: () => this.start(),
          onStop: handler => {
-            this.onEmitter('stop', handler)
+            this.onEmitter(NodeEvent.STOP, handler)
          },
          stop: () => this.stop(),
          shutdown: () => this.shutdown(),
          onUp: handler => {
-            this.onEmitter('up', handler)
+            this.onEmitter(NodeEvent.UP, handler)
          },
          up: () => this.up(),
          onDown: handler => {
-            this.onEmitter('down', handler)
+            this.onEmitter(NodeEvent.DOWN, handler)
          },
          down: () => this.down(),
          onPause: handler => {
-            this.onEmitter('pause', handler)
+            this.onEmitter(NodeEvent.PAUSE, handler)
          },
          pause: () => this.pause(),
          onResume: handler => {
-            this.onEmitter('resume', handler)
+            this.onEmitter(NodeEvent.RESUME, handler)
          },
          resume: () => this.resume(),
          onIn: handler => {
-            this.onEmitter('in', handler)
+            this.onEmitter(NodeEvent.IN, handler)
          },
          in: (message) => this.in(message),
          onOut: handler => {
-            this.onEmitter('out', handler)
+            this.onEmitter(NodeEvent.OUT, handler)
          },
          out: (message) => this.out(message),
          onAck: handler => {
-            this.onEmitter('ack', handler)
+            this.onEmitter(NodeEvent.ACK, handler)
          },
          ack: (message) => this.ack(message),
          onNack: handler => {
-            this.onEmitter('nack', handler)
+            this.onEmitter(NodeEvent.NACK, handler)
          },
          nack: (message) => this.nack(message),
          onIgnore: handler => {
-            this.onEmitter('ignore', handler)
+            this.onEmitter(NodeEvent.IGNORE, handler)
          },
          ignore: (message) => this.ignore(message),
          onReject: handler => {
-            this.onEmitter('reject', handler)
+            this.onEmitter(NodeEvent.REJECT, handler)
          },
          reject: (message) => this.reject(message),
          onError: handler => {
-            this.onEmitter('error', handler)
+            this.onEmitter(NodeEvent.ERROR, handler)
          },
          error: (err, message) => this.error(err, message),
          broadcast: (pipelines, message) => {
@@ -204,16 +211,18 @@ export default class NodeOperator extends EventEmitter {
          throw new Error(`Missing node kind`)
       }
 
-      this.loader = await Utils.loadFn(this.name, this.includePaths)
+      const loader = await Utils.loadFn(this.name, this.includePaths)
 
-      if ( typeof this.loader !== 'function' ) {
+      if ( typeof loader !== 'function' ) {
          throw new Error(`Invalid node "${this.name}" (not a function)`)
       }
 
-      this.loader(this.api)
+      return this.set(loader)
+   }
 
+   async set(loader) {
+      await loader(this.api)
       this.isLoaded = true
-
       return this
    }
 
@@ -239,33 +248,33 @@ export default class NodeOperator extends EventEmitter {
 
    pipe(node) {
       this
-         .on('out', async message => {
+         .on(NodeEvent.OUT, async message => {
             node.in(message)
          })
 
       node
-         .on('ack', message => {
+         .on(NodeEvent.ACK, message => {
             this.ack(message)
          })
 
       node
-         .on('nack', message => {
+         .on(NodeEvent.NACK, message => {
             this.nack(message)
          })
       node
-         .on('ignore', message => {
+         .on(NodeEvent.IGNORE, message => {
             this.ignore(message)
          })
       node
-         .on('reject', message => {
+         .on(NodeEvent.REJECT, message => {
             this.reject(message)
          })
       node
-         .on('pause', () => {
+         .on(NodeEvent.PAUSE, () => {
             this.pause()
          })
       node
-         .on('resume', () => {
+         .on(NodeEvent.RESUME, () => {
             this.resume()
          })
 
@@ -276,7 +285,7 @@ export default class NodeOperator extends EventEmitter {
       if ( this.isStarted ) return
       this.isStarted = true
       this.log.debug('Started')
-      const forward = await this.forwardEvent('start')
+      const forward = await this.forwardEvent(NodeEvent.START)
       if ( forward ) {
          await this.up()
       }
@@ -285,7 +294,7 @@ export default class NodeOperator extends EventEmitter {
    async stop() {
       if ( !this.isStarted ) return
       await this.down()
-      await this.forwardEvent('stop')
+      await this.forwardEvent(NodeEvent.STOP)
       this.isStarted = false
       this.log.debug('Stopped')
    }
@@ -294,7 +303,7 @@ export default class NodeOperator extends EventEmitter {
       if ( this.isUp ) return
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
-      await this.forwardEvent('up')
+      await this.forwardEvent(NodeEvent.UP)
       this.log.info('"^ Up"')
    }
 
@@ -302,7 +311,7 @@ export default class NodeOperator extends EventEmitter {
       if ( !this.isUp ) return
       this.isUp = false
       this.status.set({...this.defaultLabels, kind: 'down'}, 0)
-      await this.forwardEvent('down')
+      await this.forwardEvent(NodeEvent.DOWN)
       this.log.info('"v Down"')
    }
 
@@ -310,8 +319,7 @@ export default class NodeOperator extends EventEmitter {
       if ( !this.isUp ) return
       if ( this.isPaused ) return
       this.isPaused = true
-      this.counter.inc({...this.defaultLabels, kind: 'pause'})
-      await this.forwardEvent('pause')
+      await this.forwardEvent(NodeEvent.PAUSE)
       this.log.info('| Paused')
    }
 
@@ -319,27 +327,23 @@ export default class NodeOperator extends EventEmitter {
       if ( !this.isUp ) return
       if ( !this.isPaused ) return
       this.isPaused = false
-      this.counter.inc({...this.defaultLabels, kind: 'resume'})
-      await this.forwardEvent('resume')
+      await this.forwardEvent(NodeEvent.RESUME)
       this.log.info('> Resumed')
    }
 
    async error(err, message) {
-      try {
-         let errorMessage = err.stack
-         if ( message ) {
-            errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(err.origin, null, 3)
-         }
-         this.log.error(errorMessage)
-         this.counter.inc({...this.defaultLabels, kind: 'error'})
-         await this.emit('error', err, message)
-      } catch (err) {
-         this.log.error(err)
+      let errorMessage = err.stack
+      if ( message ) {
+         errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(message.toObject(), null, 3)
       }
+      this.log.error(errorMessage)
+      this.counter.inc({...this.defaultLabels, kind: NodeEvent.ERROR})
+      await this.emit(NodeEvent.ERROR, err, message)
    }
 
    async forwardEvent(event, message) {
       try {
+         this.counter.inc({...this.defaultLabels, kind: event})
          let shouldPropagate = true
          if ( this.emitter.listenerCount(event) > 0 ) {
             const results = await this.emitter.emit(event, message)
@@ -352,7 +356,7 @@ export default class NodeOperator extends EventEmitter {
          return shouldPropagate
       } catch (err) {
          this.error(err, message)
-         if ( event !== 'reject' ) {
+         if ( event !== NodeEvent.REJECT ) {
             this.reject(message)
          }
          return true
@@ -361,37 +365,31 @@ export default class NodeOperator extends EventEmitter {
 
    in(message) {
       this.log.debug('<- IN %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'in'})
-      return this.forwardEvent('in', message)
+      return this.forwardEvent(NodeEvent.IN, message)
    }
 
    out(message) {
       this.log.debug('-> OUT %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'out'})
-      return this.forwardEvent('out', message)
+      return this.forwardEvent(NodeEvent.OUT, message)
    }
 
    ack(message) {
       this.log.debug('-+ ACK %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'acked'})
-      return this.forwardEvent('ack', message)
+      return this.forwardEvent(NodeEvent.ACK, message)
    }
 
    nack(message) {
       this.log.debug('-X NACK %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'nacked'})
-      return this.forwardEvent('nack', message)
+      return this.forwardEvent(NodeEvent.NACK, message)
    }
 
    ignore(message) {
       this.log.debug('-- IGNORE %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'ignored'})
-      return this.forwardEvent('ignore', message)
+      return this.forwardEvent(NodeEvent.IGNORE, message)
    }
 
    reject(message) {
       this.log.debug('-! REJECT %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'rejected'})
-      return this.forwardEvent('reject', message)
+      return this.forwardEvent(NodeEvent.REJECT, message)
    }
 }

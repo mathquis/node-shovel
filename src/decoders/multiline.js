@@ -6,7 +6,8 @@ export default node => {
 		})
 		.on('in', async (message) => {
 			if ( message.payload.trim().length === 0 ) {
-				const stackedMessage = node.createMessage()message.clone()
+				const stackedMessage = node.createMessage()
+				message.clone()
 
 				stack = []
 				node.out(stackedMessage)

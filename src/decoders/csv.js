@@ -1,4 +1,4 @@
-import parse as Parser from 'csv-parse'
+import {parse as Parser} from 'csv-parse'
 
 export default node => {
    node

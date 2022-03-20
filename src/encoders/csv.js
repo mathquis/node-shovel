@@ -1,4 +1,4 @@
-import stringify as Serializer from 'csv-stringify'
+import { stringify as Serializer } from 'csv-stringify'
 
 export default node => {
    node

@@ -35,7 +35,7 @@ export default node => {
                client.end()
             })
          }
-      }
+      })
       .on('in', async (message) => {
          if ( !client || client.pending || !node.isUp || node.isPaused ) {
             node.nack(message)
