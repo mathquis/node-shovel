@@ -117,22 +117,27 @@ export default class Processor {
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
+      this.input
          .on('in', message => {
             this.globalMessage.inc({...this.defaultLabels, kind:'in'})
             this.processingMessage.inc({pipeline: this.name})
          })
+      this.input
          .on('ack', message => {
             this.processingMessage.dec({pipeline: this.name})
             this.globalMessage.inc({...this.defaultLabels, kind: 'acked'})
          })
+      this.input
          .on('nack', message => {
             this.processingMessage.dec({pipeline: this.name})
             this.globalMessage.inc({...this.defaultLabels, kind: 'nacked'})
          })
+      this.input
          .on('ignore', message => {
             this.processingMessage.dec({pipeline: this.name})
             this.globalMessage.inc({...this.defaultLabels, kind: 'ignored'})
          })
+      this.input
          .on('reject', message => {
             this.processingMessage.dec({pipeline: this.name})
             this.globalMessage.inc({...this.defaultLabels, kind: 'rejected'})
@@ -182,6 +187,7 @@ export default class Processor {
          .on('error', err => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'error'})
          })
+      this.output
          .on('out', message => {
             this.globalMessage.inc({...this.defaultLabels, kind: 'out'})
          })

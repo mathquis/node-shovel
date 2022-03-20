@@ -96,6 +96,8 @@ describe('Message', () => {
 
 		expect(message.getHeader('content-type').mimeType).toEqual('application/json')
 		expect(message.getHeader('content-type').parameters.get('disposition')).toEqual('inline')
+
+		expect(message.toJSON()).toEqual(message.toObject())
 	})
 
 	test('empty', async () => {

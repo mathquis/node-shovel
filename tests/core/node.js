@@ -66,7 +66,7 @@ describe('Node', () => {
 	})
 
 	test('start: listener', async () => {
-		expect.assertions(6)
+		expect.assertions(5)
 
 		const node = new Node(pipelineConfig, protocol)
 
@@ -75,9 +75,8 @@ describe('Node', () => {
 		await node.start()
 
 		expect(node.isStarted).toBeTruthy()
-		expect(listener).toHaveBeenCalled()
 		expect(listener).toHaveBeenCalledTimes(1)
-		expect(node.isUp).toBeFalsy()
+		expect(node.isUp).toBeTruthy()
 		expect(node.isPaused).toBeFalsy()
 
 		await node.start()
@@ -100,7 +99,6 @@ describe('Node', () => {
 		expect(node.isPaused).toBeFalsy()
 		expect(listener).toHaveBeenCalledTimes(1)
 	})
-
 	test('stop: listener', async () => {
 		expect.assertions(6)
 
@@ -287,9 +285,9 @@ describe('Node', () => {
 
 		const err = new Error()
 
-		const thrower = jest.fn(async () => {
+		const thrower = async () => {
 			throw err
-		})
+		}
 		const listener = jest.fn()
 		const rejecter = jest.fn()
 		node.on('in', thrower)
@@ -299,7 +297,7 @@ describe('Node', () => {
 		await node.in(message)
 
 		expect(listener).toHaveBeenCalledTimes(1)
-		expect(listener).toHaveBeenCalledWith(err)
+		expect(listener).toHaveBeenCalledWith(err, message)
 
 		expect(rejecter).toHaveBeenCalledTimes(1)
 		expect(rejecter).toHaveBeenCalledWith(message)
@@ -397,16 +395,15 @@ describe('Node', () => {
 		await node.error(error)
 
 		expect(listener).toHaveBeenCalledTimes(1)
-		expect(listener).toHaveBeenCalledWith(error)
+		expect(listener).toHaveBeenCalledWith(error, undefined)
 
 		const errorWithOrigin = new Error()
 		const message = new Message()
-		errorWithOrigin.origin = message
 
-		await node.error(errorWithOrigin)
+		await node.error(errorWithOrigin, message)
 
 		expect(listener).toHaveBeenCalledTimes(2)
-		expect(listener).toHaveBeenCalledWith(errorWithOrigin)
+		expect(listener).toHaveBeenCalledWith(errorWithOrigin, message)
 	})
 
 	test('pipe', async () => {

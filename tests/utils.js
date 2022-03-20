@@ -29,7 +29,7 @@ export function testDecoder(description, config, source, content) {
 		let m
 		const listener = jest.fn(message => m = message)
 		node.on('out', listener)
-		node.in(message)
+		await node.in(message)
 
 		expect(listener).toHaveBeenCalledTimes(1)
 		expect(listener).toHaveBeenCalledWith(message)
@@ -60,7 +60,7 @@ export function testEncoder(description, config, content, payload) {
 		let m
 		const listener = jest.fn(message => m = message)
 		node.on('out', listener)
-		node.in(message)
+		await node.in(message)
 
 		expect(listener).toHaveBeenCalledTimes(1)
 		expect(listener).toHaveBeenCalledWith(message)

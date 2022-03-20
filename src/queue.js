@@ -42,7 +42,7 @@ export default class Queue extends Node {
 
    evict(message) {
       this.log.debug('// EVICTED %s', message)
-      this.emit('evict', message)
       this.counter.inc({...this.defaultLabels, kind: 'evicted'})
+      return this.forwardEvent('evict', message)
    }
 }

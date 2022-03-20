@@ -1,6 +1,6 @@
 import Cluster from 'cluster'
 import Convict from 'convict'
-import EventEmitter from 'events-async'
+import EventEmitter from 'promise-events'
 import Prometheus from 'prom-client'
 import Logger from './logger.js'
 import Utils from './utils.js'
@@ -16,6 +16,7 @@ export default class NodeOperator extends EventEmitter {
       this.isUp      = false
       this.isPaused  = false
 
+      this.emitter = new EventEmitter()
 
       this.pipelineConfig = pipelineConfig
       this.executorConfigSchema = {
@@ -94,32 +95,71 @@ export default class NodeOperator extends EventEmitter {
 
          // Events
          on: (event, handler) => {
-            this.on(event, handler)
+            this.emitter.on(event, handler)
             return api
          },
          once: (event, handler) => {
-            this.once(event, handler)
+            this.emitter.once(event, handler)
             return api
          },
          off: (event, handler) => {
-            this.off(event, handler)
+            this.emitter.off(event, handler)
             return api
          },
 
          // Interface
+         onStart: handler => {
+            this.onEmitter('start', handler)
+         },
          start: () => this.start(),
+         onStop: handler => {
+            this.onEmitter('stop', handler)
+         },
          stop: () => this.stop(),
          shutdown: () => this.shutdown(),
+         onUp: handler => {
+            this.onEmitter('up', handler)
+         },
          up: () => this.up(),
+         onDown: handler => {
+            this.onEmitter('down', handler)
+         },
          down: () => this.down(),
+         onPause: handler => {
+            this.onEmitter('pause', handler)
+         },
          pause: () => this.pause(),
+         onResume: handler => {
+            this.onEmitter('resume', handler)
+         },
          resume: () => this.resume(),
+         onIn: handler => {
+            this.onEmitter('in', handler)
+         },
          in: (message) => this.in(message),
+         onOut: handler => {
+            this.onEmitter('out', handler)
+         },
          out: (message) => this.out(message),
+         onAck: handler => {
+            this.onEmitter('ack', handler)
+         },
          ack: (message) => this.ack(message),
+         onNack: handler => {
+            this.onEmitter('nack', handler)
+         },
          nack: (message) => this.nack(message),
+         onIgnore: handler => {
+            this.onEmitter('ignore', handler)
+         },
          ignore: (message) => this.ignore(message),
+         onReject: handler => {
+            this.onEmitter('reject', handler)
+         },
          reject: (message) => this.reject(message),
+         onError: handler => {
+            this.onEmitter('error', handler)
+         },
          error: (err, message) => this.error(err, message),
          broadcast: (pipelines, message) => {
             this.protocol.broadcast(pipelines, message)
@@ -193,6 +233,10 @@ export default class NodeOperator extends EventEmitter {
       process.emit('shutdown')
    }
 
+   onEmitter(event, handler) {
+      this.emitter.on(event, handler)
+   }
+
    pipe(node) {
       this
          .on('out', async message => {
@@ -203,18 +247,24 @@ export default class NodeOperator extends EventEmitter {
          .on('ack', message => {
             this.ack(message)
          })
+
+      node
          .on('nack', message => {
             this.nack(message)
          })
+      node
          .on('ignore', message => {
             this.ignore(message)
          })
+      node
          .on('reject', message => {
             this.reject(message)
          })
+      node
          .on('pause', () => {
             this.pause()
          })
+      node
          .on('resume', () => {
             this.resume()
          })
@@ -226,8 +276,8 @@ export default class NodeOperator extends EventEmitter {
       if ( this.isStarted ) return
       this.isStarted = true
       this.log.debug('Started')
-      const results = await this.emit('start')
-      if ( !results ) {
+      const forward = await this.forwardEvent('start')
+      if ( forward ) {
          await this.up()
       }
    }
@@ -235,7 +285,7 @@ export default class NodeOperator extends EventEmitter {
    async stop() {
       if ( !this.isStarted ) return
       await this.down()
-      await this.emit('stop')
+      await this.forwardEvent('stop')
       this.isStarted = false
       this.log.debug('Stopped')
    }
@@ -244,7 +294,7 @@ export default class NodeOperator extends EventEmitter {
       if ( this.isUp ) return
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
-      await this.emit('up')
+      await this.forwardEvent('up')
       this.log.info('"^ Up"')
    }
 
@@ -252,7 +302,7 @@ export default class NodeOperator extends EventEmitter {
       if ( !this.isUp ) return
       this.isUp = false
       this.status.set({...this.defaultLabels, kind: 'down'}, 0)
-      await this.emit('down')
+      await this.forwardEvent('down')
       this.log.info('"v Down"')
    }
 
@@ -260,69 +310,88 @@ export default class NodeOperator extends EventEmitter {
       if ( !this.isUp ) return
       if ( this.isPaused ) return
       this.isPaused = true
-      this.log.info('| Paused')
-      await this.emit('pause')
       this.counter.inc({...this.defaultLabels, kind: 'pause'})
+      await this.forwardEvent('pause')
+      this.log.info('| Paused')
    }
 
    async resume() {
       if ( !this.isUp ) return
       if ( !this.isPaused ) return
       this.isPaused = false
-      this.log.info('> Resumed')
-      await this.emit('resume')
       this.counter.inc({...this.defaultLabels, kind: 'resume'})
+      await this.forwardEvent('resume')
+      this.log.info('> Resumed')
    }
 
-   error(err) {
-      let errorMessage = err.stack
-      if ( err.origin ) {
-         errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(err.origin, null, 3)
+   async error(err, message) {
+      try {
+         let errorMessage = err.stack
+         if ( message ) {
+            errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(err.origin, null, 3)
+         }
+         this.log.error(errorMessage)
+         this.counter.inc({...this.defaultLabels, kind: 'error'})
+         await this.emit('error', err, message)
+      } catch (err) {
+         this.log.error(err)
       }
-      this.log.error(errorMessage)
-      this.counter.inc({...this.defaultLabels, kind: 'error'})
-      this.emit('error', err)
    }
 
-   async in(message) {
+   async forwardEvent(event, message) {
+      try {
+         let shouldPropagate = true
+         if ( this.emitter.listenerCount(event) > 0 ) {
+            const results = await this.emitter.emit(event, message)
+            shouldPropagate = results.indexOf(false) < 0
+         }
+         this.log.debug('Checking propagation (event: %s, forward: %s)', event, shouldPropagate)
+         if ( shouldPropagate ) {
+            await this.emit(event, message)
+         }
+         return shouldPropagate
+      } catch (err) {
+         this.error(err, message)
+         if ( event !== 'reject' ) {
+            this.reject(message)
+         }
+         return true
+      }
+   }
+
+   in(message) {
       this.log.debug('<- IN %s', message)
       this.counter.inc({...this.defaultLabels, kind: 'in'})
-      try {
-         await this.emit('in', message)
-      } catch (err) {
-         err.origin = message
-         this.error(err)
-         this.reject(message)
-      }
+      return this.forwardEvent('in', message)
    }
 
    out(message) {
       this.log.debug('-> OUT %s', message)
-      this.emit('out', message)
       this.counter.inc({...this.defaultLabels, kind: 'out'})
+      return this.forwardEvent('out', message)
    }
 
    ack(message) {
       this.log.debug('-+ ACK %s', message)
-      this.emit('ack', message)
       this.counter.inc({...this.defaultLabels, kind: 'acked'})
+      return this.forwardEvent('ack', message)
    }
 
    nack(message) {
       this.log.debug('-X NACK %s', message)
-      this.emit('nack', message)
       this.counter.inc({...this.defaultLabels, kind: 'nacked'})
+      return this.forwardEvent('nack', message)
    }
 
    ignore(message) {
       this.log.debug('-- IGNORE %s', message)
-      this.emit('ignore', message)
       this.counter.inc({...this.defaultLabels, kind: 'ignored'})
+      return this.forwardEvent('ignore', message)
    }
 
    reject(message) {
       this.log.debug('-! REJECT %s', message)
-      this.emit('reject', message)
       this.counter.inc({...this.defaultLabels, kind: 'rejected'})
+      return this.forwardEvent('reject', message)
    }
 }

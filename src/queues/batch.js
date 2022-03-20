@@ -136,11 +136,10 @@ export default node => {
 			addToQueue(message)
 			addToDb(message)
 			node.ack(message)
-			message.setHeader(META_QUEUE_STORED, true)
 			if ( checkForFlush() ) {
 				flush()
 			}
-			if ( !startFlushTimeout ) {
+			if ( !flushTimeout ) {
 				startFlushTimeout()
 			}
 		})
@@ -149,10 +148,11 @@ export default node => {
 			checkForFlush()
 		})
 		.on('ack', async (message) => {
-			if ( !message.getHeader(META_QUEUE_STORED) ) {
-				return
+			if ( message.getHeader(META_QUEUE_STORED) ) {
+				removeFromDb(message)
+				return false
 			}
-			removeFromDb(message)
+			message.setHeader(META_QUEUE_STORED, true)
 		})
 		.on('ignore', async (message) => {
 			removeFromDb(message)
