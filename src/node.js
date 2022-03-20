@@ -342,9 +342,8 @@ export default class NodeOperator extends EventEmitter {
    }
 
    async forwardEvent(event, message) {
+      let shouldPropagate = true
       try {
-         this.counter.inc({...this.defaultLabels, kind: event})
-         let shouldPropagate = true
          if ( this.emitter.listenerCount(event) > 0 ) {
             const results = await this.emitter.emit(event, message)
             shouldPropagate = results.indexOf(false) < 0
@@ -353,14 +352,14 @@ export default class NodeOperator extends EventEmitter {
          if ( shouldPropagate ) {
             await this.emit(event, message)
          }
-         return shouldPropagate
       } catch (err) {
          this.error(err, message)
          if ( event !== NodeEvent.REJECT ) {
             this.reject(message)
          }
-         return true
       }
+      this.counter.inc({...this.defaultLabels, kind: event})
+      return shouldPropagate
    }
 
    in(message) {
