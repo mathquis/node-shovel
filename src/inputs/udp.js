@@ -23,7 +23,7 @@ export default node => {
             default: 'udp4'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          const {host, port, type} = node.getConfig()
 
          server = Dgram.createSocket({type, reuseAddr: true})
@@ -59,18 +59,18 @@ export default node => {
 
          node.log.info('Listening (host: %s, port: %d, type: %s)', host, port, type)
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( server ) {
             server.close()
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          listening = true
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          listening = false
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          listening = true
       })
 }

@@ -1,0 +1,21 @@
+name: stdin
+workers: 1
+
+input:
+  use: stdin
+
+decoder:
+  use: json
+  options:
+
+pipeline:
+  options:
+
+encoder:
+  use: json
+  options:
+    pretty: true
+
+output:
+  use: stdout
+  options:

@@ -24,7 +24,7 @@ export default node => {
 				default: false
 			}
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			let payload = JSON.stringify(message.content, null, node.getConfig('pretty') ? 3 : 0)
 			if ( node.getConfig('colorize') ) {
 				payload = Colorize(payload, colorOptions)

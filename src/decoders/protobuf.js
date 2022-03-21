@@ -40,7 +40,7 @@ export default node => {
 				default: false
 			}
 		})
-		.on('start', async () => {
+		.onStart(async () => {
 			const rootPath = node.getConfig('root_path')
 			if ( !rootPath ) {
 				throw new Error('Configuration "root_path" must be defined')
@@ -56,7 +56,7 @@ export default node => {
 			protoPath.forEach(file => node.log.info('Loaded proto file "%s" (root: %s)', file, rootPath))
 			node.up()
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			if ( node.getConfig('delimited') ) {
 				parseDelimitedPayload(message)
 			} else {

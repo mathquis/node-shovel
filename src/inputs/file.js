@@ -48,7 +48,7 @@ export default node => {
             default: true
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          const {file, separator, start_position, encoding, follow, gzip} = node.getConfig()
 
          const filePath = Path.resolve(node.pipelineConfig.path, file)
@@ -101,7 +101,7 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( reader ) {
             if ( reader.unwatch ) {
                reader.unwatch()
@@ -110,14 +110,14 @@ export default node => {
             }
          }
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          if ( reader ) {
             if ( reader.pause ) {
                reader.pause()
             }
          }
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          if ( reader ) {
             if ( reader.resume ) {
                reader.resume()

@@ -57,7 +57,7 @@ export default node => {
 				default: false
 			}
 		})
-		.on('start', async () => {
+		.onStart(async () => {
 			const {path: dbPath, persistent, batch_size: batchSize, flush_timeout: timeout} = node.getConfig()
 
 			// Check path
@@ -93,16 +93,16 @@ export default node => {
 
 			status()
 		})
-		.on('stop', async () => {
+		.onStop(async () => {
 			if ( db ) {
 				await db.close()
 			}
 			stopFlushTimeout()
 		})
-		.on('up', async () => {
+		.onUp(async () => {
 			flush()
 		})
-		.on('down', async () => {
+		.onDown(async () => {
 			if ( draining ) {
 				stopFlushTimeout()
 				draining()
@@ -122,13 +122,13 @@ export default node => {
 			// })
 			stopFlushTimeout()
 		})
-		.on('pause', async () => {
+		.onPause(async () => {
 			stopFlushTimeout()
 		})
-		.on('resume', async () => {
+		.onResume(async () => {
 			startFlushTimeout()
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			if ( draining ) {
 				node.nack(message)
 				return
@@ -143,21 +143,21 @@ export default node => {
 				startFlushTimeout()
 			}
 		})
-		.on('nack', (message) => {
+		.onNack((message) => {
 			addToQueue(message)
 			checkForFlush()
 		})
-		.on('ack', async (message) => {
+		.onAck(async (message) => {
 			if ( message.getHeader(META_QUEUE_STORED) ) {
 				removeFromDb(message)
 				return false
 			}
 			message.setHeader(META_QUEUE_STORED, true)
 		})
-		.on('ignore', async (message) => {
+		.onIgnore(async (message) => {
 			removeFromDb(message)
 		})
-		.on('reject', async (message) => {
+		.onReject(async (message) => {
 			removeFromDb(message)
 		})
 

@@ -29,7 +29,7 @@ export default node => {
             default: 'utf8'
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          const {delimiter, escape, quote, columns, encoding} = node.getConfig()
 
          const content = await new Promise((resolve, reject) => {

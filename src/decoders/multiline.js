@@ -4,7 +4,7 @@ export default node => {
 		.registerConfig({
 			// TODO
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			if ( message.payload.trim().length === 0 ) {
 				const stackedMessage = node.createMessage()
 				message.clone()

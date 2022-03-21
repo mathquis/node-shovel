@@ -17,7 +17,7 @@ export default node => {
             default: 'utf8'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          const {file, encoding} = node.getConfig()
 
          const filePath = Path.resolve(node.pipelineConfig.path, file)
@@ -33,14 +33,14 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( writer ) {
             await new Promise((resolve, reject) => {
                writer.end('', 'binary', resolve)
             })
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          const result = writer.write(message.payload, () => {
             node.ack(message)
          })

@@ -30,7 +30,7 @@ export default node => {
             default: 100000
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          const {file, start_position, encoding, buffer_size: highWaterMark} = node.getConfig()
 
          const filePath = Path.resolve(node.pipelineConfig.path, file)
@@ -78,17 +78,17 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( reader ) {
             reader.destroy()
          }
       })
-      .on('pause', () => {
+      .onPause(() => {
          if ( reader ) {
             reader.pause()
          }
       })
-      .on('resume', () => {
+      .onResume(() => {
          if ( reader ) {
             reader.resume()
          }

@@ -1,0 +1,23 @@
+name: udp
+workers: 1
+
+input:
+  use: udp
+  options:
+
+decoder:
+  use: syslog
+  options:
+
+pipeline:
+  use: ./calameo-events.js
+  options:
+
+encoder:
+  use: json
+  options:
+    pretty: true
+
+output:
+  use: stdout
+  options:

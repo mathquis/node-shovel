@@ -74,7 +74,7 @@ export default node => {
             default: 'UTC'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          const {ca_file, url, keep_alive, schedule, timezone, before} = node.getConfig()
 
          if ( ca_file ) {
@@ -101,18 +101,18 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( job ) {
             job.stop()
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          startRequestTimeout()
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          stopRequestTimeout()
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          startRequestTimeout()
       })
 

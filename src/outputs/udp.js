@@ -21,11 +21,11 @@ export default node => {
             default: 'udp4'
          }
       })
-      .on('start', () => {
+      .onStart(() => {
          const {type} = node.getConfig()
          client = Dgram.createSocket(type)
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          const {
             host,
             port

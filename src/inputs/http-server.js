@@ -46,7 +46,7 @@ export default node => {
             default: ''
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
 
          const {
             ca_file,
@@ -109,33 +109,33 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( server ) {
             server.close()
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          listening = true
       })
-      .on('down', async () => {
+      .onDown(async () => {
          listening = false
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          listening = false
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          listening = true
       })
-      .on('ack', async (message) => {
+      .onAck(async (message) => {
          respond(200, message)
       })
-      .on('nack', async (message) => {
+      .onNack(async (message) => {
          respond(520, message)
       })
-      .on('ignore', async (message) => {
+      .onIgnore(async (message) => {
          respond(200, message)
       })
-      .on('reject', async (message) => {
+      .onReject(async (message) => {
          respond(501, message)
       })
 

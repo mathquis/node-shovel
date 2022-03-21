@@ -80,34 +80,34 @@ export default node => {
             default: '5s'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          connect()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( channel ) {
             await channel.cancel(consumerTag)
             await connection.close()
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          startConsuming()
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          stopConsuming()
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          startConsuming()
       })
-      .on('ack', async (message) => {
+      .onAck(async (message) => {
          ackMessage(message)
       })
-      .on('nack', async (message) => {
+      .onNack(async (message) => {
          nackMessage(message, true)
       })
-      .on('ignore', async (message) => {
+      .onIgnore(async (message) => {
          ackMessage(message)
       })
-      .on('reject', async (message) => {
+      .onReject(async (message) => {
          nackMessage(message, false)
       })
 

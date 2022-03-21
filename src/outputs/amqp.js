@@ -60,15 +60,15 @@ export default node => {
             default: '5s'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          connect()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( channel ) {
             await channel.close()
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          if ( !channel || !node.isUp || node.isPaused ) {
             node.nack(message)
             return

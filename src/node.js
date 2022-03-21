@@ -71,14 +71,53 @@ export default class NodeOperator extends EventEmitter {
       return NodeEvent
    }
 
-   get api() {
-      const log = this.createLogger(`${this.constructor.name}[${this.name}]`)
+   createLogger(categoryName) {
+      const worker = Cluster.worker && Cluster.worker.id || 0
+      const category = categoryName.replace(/(.)([A-Z])/g, (_, $1, $2) => {
+         return $1 + '-' + $2.toLowerCase()
+      }).toLowerCase()
+
+      return Logger.child({category, worker, pipeline: this.pipelineConfig.name})
+   }
+
+   createApi() {
+      if ( this.emitter ) {
+         this.emitter.removeAllListeners()
+      }
+
+      const self = this
 
       const api = {
          // Logging
-         log,
+         log: {
+            debug: (...args) => {
+               this.log.debug.apply(this.log, args)
+            },
+            info: (...args) => {
+               this.log.info.apply(this.log, args)
+            },
+            warn: (...args) => {
+               this.log.warn.apply(this.log, args)
+            },
+            error: (...args) => {
+               this.log.error.apply(this.log, args)
+            }
+         },
 
          Event: NodeEvent,
+
+         // Properties
+         get isStarted() {
+            return self.isStarted
+         },
+
+         get isUp() {
+            return self.isUp
+         },
+
+         get isPaused() {
+            return self.isPaused
+         },
 
          // Configuration
          pipelineConfig: this.pipelineConfig,
@@ -100,6 +139,20 @@ export default class NodeOperator extends EventEmitter {
             return new Message(data)
          },
 
+         // Functions
+         shutdown: () => {
+            this.shutdown()
+            return api
+         },
+         broadcast: (pipelines, message) => {
+            this.protocol.broadcast(pipelines, message)
+            return api
+         },
+         fanout: (pipelines, message) => {
+            this.protocol.fanout(pipelines, message)
+            return api
+         },
+
          // Events
          on: (event, handler) => {
             this.emitter.on(event, handler)
@@ -117,75 +170,108 @@ export default class NodeOperator extends EventEmitter {
          // Interface
          onStart: handler => {
             this.onEmitter(NodeEvent.START, handler)
+            return api
          },
-         start: () => this.start(),
          onStop: handler => {
             this.onEmitter(NodeEvent.STOP, handler)
+            return api
          },
-         stop: () => this.stop(),
-         shutdown: () => this.shutdown(),
+
          onUp: handler => {
             this.onEmitter(NodeEvent.UP, handler)
+            return api
          },
-         up: () => this.up(),
+         up: async () => {
+            await this.up()
+            return api
+         },
          onDown: handler => {
             this.onEmitter(NodeEvent.DOWN, handler)
+            return api
          },
-         down: () => this.down(),
+         down: async () => {
+            await this.down()
+            return api
+         },
+
          onPause: handler => {
             this.onEmitter(NodeEvent.PAUSE, handler)
+            return api
          },
-         pause: () => this.pause(),
+         pause: async () => {
+            await this.pause()
+            return api
+         },
          onResume: handler => {
             this.onEmitter(NodeEvent.RESUME, handler)
+            return api
          },
-         resume: () => this.resume(),
+         resume: async () => {
+            await this.resume()
+            return api
+         },
+
          onIn: handler => {
             this.onEmitter(NodeEvent.IN, handler)
+            return api
          },
-         in: (message) => this.in(message),
+         in: async (message) => {
+            await this.in(message)
+            return api
+         },
          onOut: handler => {
             this.onEmitter(NodeEvent.OUT, handler)
+            return api
          },
-         out: (message) => this.out(message),
+         out: async (message) => {
+            await this.out(message)
+            return api
+         },
+
          onAck: handler => {
             this.onEmitter(NodeEvent.ACK, handler)
+            return api
          },
-         ack: (message) => this.ack(message),
+         ack: async (message) => {
+            await this.ack(message)
+            return api
+         },
          onNack: handler => {
             this.onEmitter(NodeEvent.NACK, handler)
+            return api
          },
-         nack: (message) => this.nack(message),
+         nack: async (message) => {
+            await this.nack(message)
+            return api
+         },
          onIgnore: handler => {
             this.onEmitter(NodeEvent.IGNORE, handler)
+            return api
          },
-         ignore: (message) => this.ignore(message),
+         ignore: async (message) => {
+            await this.ignore(message)
+            return api
+         },
          onReject: handler => {
             this.onEmitter(NodeEvent.REJECT, handler)
+            return api
          },
-         reject: (message) => this.reject(message),
+         reject: async (message) => {
+            await this.reject(message)
+            return api
+         },
+
          onError: handler => {
             this.onEmitter(NodeEvent.ERROR, handler)
+            return api
          },
-         error: (err, message) => this.error(err, message),
-         broadcast: (pipelines, message) => {
-            this.protocol.broadcast(pipelines, message)
-         },
-         fanout: (pipelines, message) => {
-            this.protocol.fanout(pipelines, message)
+         error: async (err, message) => {
+            await this.error(err, message)
+            return api
          }
       }
 
       return api
-   }
-
-   createLogger(categoryName) {
-      const worker = Cluster.worker && Cluster.worker.id || 0
-      const category = categoryName.replace(/(.)([A-Z])/g, (_, $1, $2) => {
-         return $1 + '-' + $2.toLowerCase()
-      }).toLowerCase()
-
-      return Logger.child({category, worker, pipeline: this.pipelineConfig.name})
    }
 
    setupMonitoring() {
@@ -221,7 +307,8 @@ export default class NodeOperator extends EventEmitter {
    }
 
    async set(loader) {
-      await loader(this.api)
+      const api = this.createApi()
+      await loader(api)
       this.isLoaded = true
       return this
    }
@@ -243,6 +330,9 @@ export default class NodeOperator extends EventEmitter {
    }
 
    onEmitter(event, handler) {
+      if ( this.emitter.listenerCount(event) > 0 ) {
+         this.log.warn('Listener for "%s" already registered', event)
+      }
       this.emitter.on(event, handler)
    }
 
@@ -332,13 +422,18 @@ export default class NodeOperator extends EventEmitter {
    }
 
    async error(err, message) {
+      if ( this.emitter.listenerCount(NodeEvent.ERROR) > 0 ) {
+         await this.emitter.emit(NodeEvent.ERROR, err, message)
+      }
+      if ( this.listenerCount(NodeEvent.ERROR) > 0 ) {
+         await this.emit(NodeEvent.ERROR, err, message)
+      }
       let errorMessage = err.stack
       if ( message ) {
          errorMessage += '\n\nMESSAGE:\n' + JSON.stringify(message.toObject(), null, 3)
       }
       this.log.error(errorMessage)
       this.counter.inc({...this.defaultLabels, kind: NodeEvent.ERROR})
-      await this.emit(NodeEvent.ERROR, err, message)
    }
 
    async forwardEvent(event, message) {

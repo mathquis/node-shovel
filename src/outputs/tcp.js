@@ -21,10 +21,10 @@ export default node => {
             default: 5000
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          connect()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( client ) {
             await new Promise((resolve, reject) => {
                client.removeAllListeners()
@@ -36,7 +36,7 @@ export default node => {
             })
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          if ( !client || client.pending || !node.isUp || node.isPaused ) {
             node.nack(message)
             return

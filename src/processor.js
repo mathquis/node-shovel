@@ -34,13 +34,6 @@ export default class Processor {
          help: 'Number of messages currently in the processing pipeline',
          labelNames
       })
-
-      this.setupInput()
-      this.setupDecoder()
-      this.setupPipeline()
-      this.setupEncoder()
-      this.setupQueue()
-      this.setupOutput()
    }
 
    get defaultLabels() {
@@ -68,6 +61,13 @@ export default class Processor {
       }
 
       this.isLoaded = true
+
+      this.setupInput()
+      this.setupDecoder()
+      this.setupPipeline()
+      this.setupEncoder()
+      this.setupQueue()
+      this.setupOutput()
 
       await this.input.load()
       await this.decoder.load()
@@ -110,7 +110,7 @@ export default class Processor {
       this.pipeline.in(message)
    }
 
-   async setupInput() {
+   setupInput() {
       this.log.debug('Setting up input')
       this.input = new Input(this.pipelineConfig, this.protocol)
       this.input
@@ -144,7 +144,7 @@ export default class Processor {
          })
    }
 
-   async setupDecoder() {
+   setupDecoder() {
       this.log.debug('Setting up decoder')
       this.decoder = new Decoder(this.pipelineConfig, this.protocol)
       this.decoder
@@ -153,7 +153,7 @@ export default class Processor {
          })
    }
 
-   async setupPipeline() {
+   setupPipeline() {
       this.log.debug('Setting up pipeline')
       this.pipeline = new Pipeline(this.pipelineConfig, this.protocol)
       this.pipeline
@@ -162,7 +162,7 @@ export default class Processor {
          })
    }
 
-   async setupEncoder() {
+   setupEncoder() {
       this.log.debug('Setting up encoder')
       this.encoder = new Encoder(this.pipelineConfig, this.protocol)
       this.encoder
@@ -171,7 +171,7 @@ export default class Processor {
          })
    }
 
-   async setupQueue() {
+   setupQueue() {
       this.log.debug('Setting up queue')
       this.queue = new Queue(this.pipelineConfig, this.protocol)
       this.queue
@@ -180,7 +180,7 @@ export default class Processor {
          })
    }
 
-   async setupOutput() {
+   setupOutput() {
       this.log.debug('Setting up output')
       this.output = new Output(this.pipelineConfig, this.protocol)
       this.output

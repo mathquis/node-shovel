@@ -8,7 +8,7 @@ export default node => {
    }
 
    node
-      .on('start', async () => {
+      .onStart(async () => {
          reader = Readline.createInterface({
             input: process.stdin,
             terminal: false
@@ -28,17 +28,17 @@ export default node => {
 
          node.up()
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( reader ) {
             reader.close()
          }
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          if ( reader ) {
             reader.pause()
          }
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          if ( reader ) {
             reader.resume()
          }

@@ -61,7 +61,7 @@ export default node => {
             arg: 'amqp-reconnect-after-ms'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          // Connect to AMQP
          const {
             url,
@@ -101,7 +101,7 @@ export default node => {
                node.error(err)
             })
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( connection ) {
             await new Promise((resolve, reject) => {
                connection.end(false, {}, resolve)
@@ -109,7 +109,7 @@ export default node => {
             })
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          if ( !node.isUp || node.isPaused ) {
             node.nack(message)
             return

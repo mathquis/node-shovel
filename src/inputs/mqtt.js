@@ -59,7 +59,7 @@ export default node => {
             default: 5000
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          // Connect to AMQP
          const {url, username, password, ca, cert, key, reconnect_after_ms: reconnectPeriod, topics} = node.getConfig()
 
@@ -112,7 +112,7 @@ export default node => {
                node.in(message)
             })
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( connection ) {
             await new Promise((resolve, reject) => {
                connection.end(false, {}, resolve)
@@ -120,13 +120,13 @@ export default node => {
             connection = null
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          listening = true
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          listening = false
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          listening = true
       })
 }

@@ -15,7 +15,7 @@ export default node => {
             default: 'fanout'
          }
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          const {pipelines, mode} = node.getConfig()
          message.setHeader(META_ORIGIN_PIPELINE, node.pipelineConfig.name)
          switch ( mode ) {

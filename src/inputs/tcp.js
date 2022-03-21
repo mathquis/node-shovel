@@ -36,7 +36,7 @@ export default node => {
             }
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          server = Net.createServer(socket => {
             const {
                remoteAddress,
@@ -105,18 +105,18 @@ export default node => {
             }
          )
       })
-      .on('stop', async () => {
+      .onStop(async () => {
          if ( server ) {
             server.close()
          }
       })
-      .on('up', async () => {
+      .onUp(async () => {
          listening = true
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          listening = false
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          listening = true
       })
 }

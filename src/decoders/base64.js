@@ -7,7 +7,7 @@ export default node => {
 				default: 'utf8'
 			}
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			const {encoding} = node.getConfig()
 			message.decode(Buffer.from(message.source, 'base64').toString(encoding))
 			node.out(message)

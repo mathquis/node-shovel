@@ -71,7 +71,7 @@ export default async (pipelineConfig) => {
       protocol.ready()
 
    } catch (err) {
-      log.error(err.stack)
+      log.error(err)
       stop(1)
    }
 

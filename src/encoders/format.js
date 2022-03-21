@@ -7,7 +7,7 @@ export default node => {
 				default: ''
 			}
 		})
-		.on('in', async (message) => {
+		.onIn(async (message) => {
 			const {format} = node.getConfig()
 			message.encode(node.util.renderTemplate(format, message))
 			node.out(message)

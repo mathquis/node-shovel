@@ -72,7 +72,7 @@ export default node => {
             default: 'logs'
          }
       })
-      .on('start', async () => {
+      .onStart(async () => {
          if ( node.getConfig('compat') ) {
             node.log.warn('Using compatibility mode')
             setupAgent()
@@ -86,20 +86,20 @@ export default node => {
          }
          await node.up()
       })
-      .on('down', async () => {
+      .onDown(async () => {
          await node.pause()
       })
-      .on('up', async () => {
+      .onUp(async () => {
          await node.resume()
          startFlushTimeout()
       })
-      .on('pause', async () => {
+      .onPause(async () => {
          stopFlushTimeout()
       })
-      .on('resume', async () => {
+      .onResume(async () => {
          startFlushTimeout()
       })
-      .on('in', async (message) => {
+      .onIn(async (message) => {
          const {
             batch_size: batchSize
          } = node.getConfig()
