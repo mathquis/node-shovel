@@ -85,7 +85,8 @@ export default node => {
 		const messageClass = getMessageClass(className)
 		let msg
 		let payload = message.source
-		const contentType = node.getConfig('content_type') || message.contentType.mimeType
+		const messageContentType = message.getHeader('content-type')
+		const contentType = node.getConfig('content_type') || ( messageContentType && messageContentType.mimeType ) || 'application/protobuf'
 		switch ( contentType ) {
 			case 'text/json':
 			case 'application/json':

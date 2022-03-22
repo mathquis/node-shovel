@@ -56,8 +56,8 @@ export default node => {
 			const messageClass = getMessageClass(className)
 			if ( node.getConfig('delimited') ) {
 				let contents = message.content
-				if ( !Array.isArray(content) ) {
-					contents = [content]
+				if ( !Array.isArray(contents) ) {
+					contents = [contents]
 				}
 				message.encode(Buffer.concat(contents.map(content => messageClass.encodeDelimited(content).finish())))
 			} else {

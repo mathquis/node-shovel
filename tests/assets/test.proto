@@ -1,0 +1,4 @@
+
+message Test {
+	required string test = 1;
+}
