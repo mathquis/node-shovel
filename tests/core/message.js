@@ -1,4 +1,4 @@
-import Message from '../../src/message.js'
+import Message from '../../src/core/message.js'
 
 import {jest} from '@jest/globals'
 

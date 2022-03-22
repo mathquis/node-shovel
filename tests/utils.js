@@ -1,8 +1,8 @@
 import Prometheus from 'prom-client'
-import {WorkerProtocol} from '../src/protocol.js'
-import PipelineConfig from '../src/pipeline_config.js'
-import Decoder from '../src/decoder.js'
-import Encoder from '../src/encoder.js'
+import {WorkerProtocol} from '../src/core/protocol.js'
+import PipelineConfig from '../src/core/pipeline_config.js'
+import Decoder from '../src/core/decoder.js'
+import Encoder from '../src/core/encoder.js'
 
 import {jest} from '@jest/globals'
 

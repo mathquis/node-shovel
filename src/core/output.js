@@ -11,7 +11,7 @@ export default class Output extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './outputs')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), '../outputs')
       ]
    }
 

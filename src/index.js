@@ -1,9 +1,9 @@
 import Cluster from 'cluster'
-import Config from './config.js'
-import Logger from './logger.js'
-import PipelineConfig from './pipeline_config.js'
-import Master from './master.js'
-import Worker from './worker.js'
+import Config from './core/config.js'
+import Logger from './core/logger.js'
+import PipelineConfig from './core/pipeline_config.js'
+import Master from './core/master.js'
+import Worker from './core/worker.js'
 
 Logger.setLogLevel( Config.get('log.level') )
 

@@ -1,5 +1,5 @@
-import Message from '../../src/message.js'
-import {MasterProtocol, WorkerProtocol, Event} from '../../src/protocol.js'
+import Message from '../../src/core/message.js'
+import {MasterProtocol, WorkerProtocol, Event} from '../../src/core/protocol.js'
 
 import {jest} from '@jest/globals'
 

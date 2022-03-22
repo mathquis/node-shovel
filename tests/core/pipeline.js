@@ -1,10 +1,10 @@
 import Prometheus from 'prom-client'
-import Pipeline from '../../src/pipeline.js'
-import {WorkerProtocol} from '../../src/protocol.js'
-import PipelineConfig from '../../src/pipeline_config.js'
-import Message from '../../src/message.js'
+import Pipeline from '../../src/core/pipeline.js'
+import {WorkerProtocol} from '../../src/core/protocol.js'
+import PipelineConfig from '../../src/core/pipeline_config.js'
+import Message from '../../src/core/message.js'
 import Path from 'path'
-import Logger from '../../src/logger.js'
+import Logger from '../../src/core/logger.js'
 
 import {jest} from '@jest/globals'
 

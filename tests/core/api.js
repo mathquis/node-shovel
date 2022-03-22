@@ -1,9 +1,9 @@
 import Prometheus from 'prom-client'
-import Node from '../../src/node.js'
-import {WorkerProtocol} from '../../src/protocol.js'
-import PipelineConfig from '../../src/pipeline_config.js'
-import Message from '../../src/message.js'
-import Logger from '../../src/logger.js'
+import Node from '../../src/core/node.js'
+import {WorkerProtocol} from '../../src/core/protocol.js'
+import PipelineConfig from '../../src/core/pipeline_config.js'
+import Message from '../../src/core/message.js'
+import Logger from '../../src/core/logger.js'
 
 import {jest} from '@jest/globals'
 

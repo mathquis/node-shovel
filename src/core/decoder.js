@@ -3,16 +3,16 @@ import Path from 'path'
 import Prometheus from 'prom-client'
 import Node from './node.js'
 
-export default class Encoder extends Node {
+export default class Decoder extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './encoders')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), '../decoders')
       ]
    }
 
    get options() {
-      return this.pipelineConfig.encoder
+      return this.pipelineConfig.decoder
    }
 
    get configSchema() {
@@ -28,14 +28,14 @@ export default class Encoder extends Node {
 
    setupMonitoring() {
       this.status = new Prometheus.Gauge({
-         name: 'encoder_status',
-         help: 'Status of the encoder',
+         name: 'decoder_status',
+         help: 'Status of the decoder',
          labelNames: ['pipeline', 'kind']
       })
 
       this.counter = new Prometheus.Counter({
-         name: 'encoder_message',
-         help: 'Number of encoder messages',
+         name: 'decoder_message',
+         help: 'Number of decoder messages',
          labelNames: ['pipeline', 'kind', 'type']
       })
    }

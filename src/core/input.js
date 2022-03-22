@@ -13,7 +13,7 @@ export default class Input extends Node {
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './inputs')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), '../inputs')
       ]
    }
 

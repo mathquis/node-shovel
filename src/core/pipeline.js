@@ -3,7 +3,8 @@ import Path from 'path'
 import Prometheus from 'prom-client'
 import Node from './node.js'
 
-export default class Queue extends Node {
+export default class Pipeline extends Node {
+
    get configSchema() {
       return {
          ...super.configSchema,
@@ -16,33 +17,27 @@ export default class Queue extends Node {
    }
 
    get options() {
-      return this.pipelineConfig.queue
+      return this.pipelineConfig.pipeline
    }
 
    get includePaths() {
       return [
          ...super.includePaths,
-         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), './queues')
+         Path.resolve(Path.dirname(fileURLToPath(import.meta.url)), '../pipelines')
       ]
    }
 
    setupMonitoring() {
       this.status = new Prometheus.Gauge({
-         name: 'queue_status',
-         help: 'Status of the queue node',
+         name: 'pipeline_status',
+         help: 'Status of the pipeline node',
          labelNames: ['pipeline', 'kind']
       })
 
       this.counter = new Prometheus.Counter({
-         name: 'queue_message',
-         help: 'Number of queue messages',
+         name: 'pipeline_message',
+         help: 'Number of pipeline messages',
          labelNames: ['pipeline', 'kind', 'type']
       })
-   }
-
-   evict(message) {
-      this.log.debug('// EVICTED %s', message)
-      this.counter.inc({...this.defaultLabels, kind: 'evicted'})
-      return this.forwardEvent('evict', message)
    }
 }

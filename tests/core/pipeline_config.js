@@ -1,8 +1,8 @@
 import YAML from 'js-yaml'
 import File from 'fs'
 import Path from 'path'
-import PipelineConfig from '../../src/pipeline_config.js'
-import Logger from '../../src/logger.js'
+import PipelineConfig from '../../src/core/pipeline_config.js'
+import Logger from '../../src/core/logger.js'
 
 import {jest} from '@jest/globals'
 
