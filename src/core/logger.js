@@ -69,16 +69,13 @@ const consoleTransport = new transports.Console()
 const internalLogger = Winston.createLogger({
    level: 'info',
    format: customFormat,
-   defaultMeta: {service: 'logger'},
+   defaultMeta: {},
    transports: [
       consoleTransport
    ]
 })
 
 const Logger = {
-   setServiceName: name => {
-      internalLogger.defaultMeta.service = name
-   },
    setLogLevel: level => {
       for ( let transport in internalLogger.transports ) {
          internalLogger.transports[transport].level = level || 'info'
