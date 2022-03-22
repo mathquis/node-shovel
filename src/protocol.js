@@ -21,63 +21,63 @@ export class MasterProtocol {
 			message
 		})
 	}
+
 	stop(worker) {
 		this.log.debug('Sending stop (worker: %d)', worker.id)
 		worker.send({
 			type: Event.STOP
 		})
 	}
-	stdin(line) {
-		worker.send({
-			type: Event.STDIN,
-			line: line
-		})
-	}
 }
 
 export class WorkerProtocol {
-	constructor() {
+	constructor(worker) {
+		this.worker = worker
 	   this.log = Logger.child({category: 'worker-protocol'})
+	}
+
+	ready() {
+		this.log.debug('Ready')
+		process.send({
+			type: Event.READY,
+			workerId: this.worker.id
+		})
 	}
 
 	stopped(metrics) {
 		this.log.debug('Sending stopped')
 		process.send({
 			type: Event.STOPPED,
-			workerId: Cluster.worker.id,
+			workerId: this.worker.id,
 			metrics
 		})
 	}
-	ready() {
-		this.log.debug('Ready')
-		process.send({
-			type: Event.READY,
-			workerId: Cluster.worker.id
-		})
-	}
+
 	shutdown(signal = 'SIGINT') {
 		this.log.debug('Shutdown (signal: %s)', signal)
 		process.send({
 			type: Event.SHUTDOWN,
-			workerId: Cluster.worker.id,
+			workerId: this.worker.id,
 			signal
 		})
 	}
+
 	broadcast(pipelines, message) {
 		this.log.debug('Sending message to pipelines "%s" (mode: broadcast)', pipelines.join(','))
 		process.send({
 			type: Event.MESSAGE,
-			workerId: Cluster.worker.id,
+			workerId: this.worker.id,
 			pipelines,
 			mode: 'broadcast',
 			message
 		})
 	}
+
 	fanout(pipelines, message) {
 		this.log.debug('Sending message to pipelines "%s" (mode: fanout)', pipelines.join(','))
 		process.send({
 			type: Event.MESSAGE,
-			workerId: Cluster.worker.id,
+			workerId: this.worker.id,
 			pipelines,
 			mode: 'fanout',
 			message

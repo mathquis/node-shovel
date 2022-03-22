@@ -40,7 +40,7 @@ export default async (pipelineConfig) => {
 
       log.debug('Starting (pipeline: %s)', pipelineConfig.name)
 
-      protocol = new Protocol()
+      protocol = new Protocol(Cluster.worker)
 
       pipeline = new Processor(pipelineConfig, protocol)
 

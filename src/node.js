@@ -444,7 +444,7 @@ export default class NodeOperator extends EventEmitter {
             shouldPropagate = results.indexOf(false) < 0
          }
          this.log.debug('Checking propagation (event: %s, forward: %s)', event, shouldPropagate)
-         if ( shouldPropagate ) {
+         if ( shouldPropagate && this.listenerCount(event) > 0 ) {
             await this.emit(event, message)
          }
       } catch (err) {
