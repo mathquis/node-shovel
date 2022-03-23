@@ -112,13 +112,94 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 - udp
 
 
-### Custom decoder/encoder
+### Node
 
 ```javascript
-module.exports = node => {
+export default node => {
+  node
+    // Use convict schema
+    .registerConfig({})
+
+    // Create a new message object
+    .createMessage()
+
+    // Events: start, stop, up, down, pause, resume, in, ou, ack, nack, ignore, reject, error
+    .on(event, handler)
+    .off(event, handler)
+    .once(event, handler)
+
+    // When the node starts (if set, the handler is responsible for calling node.up())
+    .onStart(async () => {})
+
+    // When the node stops
+    .onStop(async () => {})
+
+    // When the node is up (connected, ready, etc.)
+    .onUp(async () => {})
+    .up()
+
+    // When the node is down (disconnected, unable to process messages)
+    .onDown(async () => {})
+    .down()
+
+    // When the node should pause processing messages
+    .onPause(async () => {})
+    .pause()
+
+    // When the node should resume processing messages
+    .onResume(async () => {})
+    .resume()
+
+    // When the node receives a message
+    .onIn(async (message) => {})
+    .in(message)
+
+    // When the node push a message down the pipeline
+    .onOut(async (message) => {})
+    .out(message)
+
+    // When the node acks a message
+    .onAck(async (message) => {})
+    .ack(message)
+
+    // When a node nacks a message
+    .onUnack(async (message) => {})
+    .unack(message)
+
+    // When the node ignores a message
+    .onIgnore(async (message) => {})
+    .ignore(message)
+
+    // When the node rejects a message
+    .onReject(async (message) => {})
+    .reject(message)
+
+    // When the node triggers an error
+    .error(err)
+}
+```
+
+### Decoder
+
+```javascript
+export default node => {
   node
     .registerConfig({})
-    .on('in', async (message) => {
+    .onIn(async (message) => {
+      message.decode(decodedValue)
+      node.out(message)
+    })
+}
+```
+
+### Encoder
+
+```javascript
+export default node => {
+  node
+    .registerConfig({})
+    .onIn(async (message) => {
+      message.encode(encodedValue)
       node.out(message)
     })
 }
@@ -127,7 +208,7 @@ module.exports = node => {
 ### Pipeline
 
 ```javascript
-module.exports = node => {
+export default node => {
   node
     .registerConfig({
       enabled: {
@@ -141,10 +222,7 @@ module.exports = node => {
         default: true
       }
     })
-    .on('in', async (message) => {
-      message.setId(1)
-      message.setDate(new Date())
-
+    .onIn(async (message) => {
       const {blocked} = node.getConfig()
 
       if (blocked) {
@@ -158,59 +236,5 @@ module.exports = node => {
         node.out(message)
       }
     })
-}
-```
-
-### Custom node
-
-```javascript
-module.exports = node => {
-  node
-    // Use convict schema
-    .registerConfig({})
-
-    .on('start', async () => {})
-    .on('stop', async () => {})
-
-    .on('up', async () => {})
-    .on('down', async () => {})
-
-    .on('pause', async () => {})
-    .on('resume', async () => {})
-
-    .on('in', async (message) => {
-      node.out(message)
-    })
-    .on('out', async (message) => {})
-
-    .on('ack', async (message) => {})
-    .on('unack', async (message) => {})
-    .on('ignore', async (message) => {})
-    .on('reject', async (message) => {})
-
-    .on('error', async (err) => {})
-}
-```
-
-### Template
-
-```javascript
-module.exports = config => {
-  return {
-    "name": "template-name",
-    "template": {
-      "index_patterns": "template-*"],
-      "settings": {
-        "index": {
-          "number_of_shards": 1,
-          "refresh_interval": "10s"
-        }
-      },
-      "aliases": {
-        "template": {}
-      },
-      "mappings": {}
-    }
-  }
 }
 ```
