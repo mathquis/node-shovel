@@ -1,5 +1,8 @@
 # shovel
 
+[![Tests](https://github.com/mathquis/node-shovel/actions/workflows/node.js.yml/badge.svg)](https://github.com/mathquis/node-shovel/actions/workflows/node.js.yml)
+
+
 ## Installation
 
 `npm i @mathquis/node-shovel`

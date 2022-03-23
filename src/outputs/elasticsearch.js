@@ -297,7 +297,7 @@ export default node => {
 
          let tpl
          try {
-            tpl = node.util.loadFn(template, [node.pipelineConfig.path])
+            tpl = await node.util.loadFn(template, [node.pipelineConfig.path])
             if ( typeof tpl === 'function' ) {
                tpl = tpl(node)
             }
@@ -319,7 +319,6 @@ export default node => {
             node.log.debug('Creating template...')
             if ( compat ) {
                const response = await request('PUT', `/_template/${tpl.name}`, tpl.template)
-               console.log(response)
                // TODO: check response
             } else {
                await client.indices.putTemplate({

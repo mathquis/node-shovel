@@ -11,4 +11,4 @@ COPY src src
 
 EXPOSE 3001
 
-ENTRYPOINT ["npm", "run", "start"]
+ENTRYPOINT ["node", "src/index.js"]
