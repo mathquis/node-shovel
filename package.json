@@ -1,6 +1,6 @@
 {
   "name": "@mathquis/node-shovel",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Shovel messages from here to there",
   "main": "src/index.js",
   "scripts": {
