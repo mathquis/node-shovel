@@ -1,3 +1,5 @@
 .queues
+coverage
 node_modules
 test
+tests
