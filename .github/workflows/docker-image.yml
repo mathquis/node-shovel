@@ -22,4 +22,4 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: quisefit/shovel:latest,quisefit/shoval:${{ steps.vars.outputs.tag }}
+          tags: quisefit/shovel:latest,quisefit/shovel:${{ steps.vars.outputs.tag }}
