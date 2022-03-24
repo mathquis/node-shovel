@@ -211,8 +211,12 @@ export default node => {
 			createBatch()
 		}
 		// console.log(batches.map(batch => batch.length), messages.length)
-		if ( !node.isPaused && node.isUp && batches.length > 0 ) {
+		if ( node.isPaused || !node.isUp ) return
+
+		if ( batches.length > 0 ) {
 			flush()
+		} else {
+			startFlushTimeout()
 		}
 	}
 
