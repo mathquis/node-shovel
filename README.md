@@ -100,6 +100,7 @@ Pipeline configuration can use environment variables like so `${NAME:default}`.
 ### Available queues (optional)
 
 - batch
+- noop
 
 ### Available outputs
 
