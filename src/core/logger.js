@@ -60,7 +60,7 @@ const customFormat = format.combine(
             info.message = '\n' + JSON.stringify(info.message, null, 2)
          }
       }
-      return `${info.timestamp} ${info.level}${info.pipeline ? ` [${info.pipeline}][${info.worker}]` : ''} ${info.category}: ${info.message}${info.stack ? '\n' + info.stack : ''}`
+      return `${info.timestamp} ${info.level}${info.pipeline ? ` [${info.pipeline}][${info.worker}]` : ''} ${info.category}${info.node ? '[' + info.node + ']' : ''}: ${info.message}${info.stack ? '\n' + info.stack : ''}`
    })
 )
 

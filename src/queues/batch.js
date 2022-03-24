@@ -100,7 +100,7 @@ export default node => {
 			stopFlushTimeout()
 		})
 		.onUp(async () => {
-			flush()
+			checkForFlush()
 		})
 		.onDown(async () => {
 			if ( draining ) {
@@ -124,9 +124,11 @@ export default node => {
 		})
 		.onPause(async () => {
 			stopFlushTimeout()
+			return false
 		})
 		.onResume(async () => {
 			startFlushTimeout()
+			return false
 		})
 		.onIn(async (message) => {
 			if ( draining ) {
@@ -136,16 +138,10 @@ export default node => {
 			addToQueue(message)
 			addToDb(message)
 			node.ack(message)
-			if ( checkForFlush() ) {
-				flush()
-			}
+			checkForFlush()
 			if ( !flushTimeout ) {
 				startFlushTimeout()
 			}
-		})
-		.onNack((message) => {
-			addToQueue(message)
-			checkForFlush()
 		})
 		.onAck(async (message) => {
 			if ( message.getHeader(META_QUEUE_STORED) ) {
@@ -154,11 +150,18 @@ export default node => {
 			}
 			message.setHeader(META_QUEUE_STORED, true)
 		})
+		.onNack((message) => {
+			addToQueue(message)
+			checkForFlush()
+			return false
+		})
 		.onIgnore(async (message) => {
 			removeFromDb(message)
+			return false
 		})
 		.onReject(async (message) => {
 			removeFromDb(message)
+			return false
 		})
 
 	function status() {
@@ -189,11 +192,13 @@ export default node => {
 	}
 
 	function addToDb(message) {
+		if ( !db ) return
 		const sync = node.getConfig('sync')
 		return db.put(message.uuid, message.toObject(), {sync})
 	}
 
 	function removeFromDb(message) {
+		if ( !db ) return
 		const sync = node.getConfig('sync')
 		return db.del(message.uuid, {sync})
 	}
@@ -204,9 +209,11 @@ export default node => {
 		} = node.getConfig()
 		if ( messages.length >= batchSize ) {
 			createBatch()
-			return true
 		}
-		return false
+		// console.log(batches.map(batch => batch.length), messages.length)
+		if ( !node.isPaused && node.isUp && batches.length > 0 ) {
+			flush()
+		}
 	}
 
 	function createBatch() {
@@ -219,7 +226,7 @@ export default node => {
 			batch.push(message)
 		})
 		batches.push(batch)
-		node.log.debug('Created batch (messages: %d, queued: %d)', batch.length, messages.length)
+		node.log.info('Created batch (messages: %d, queued: %d, batches: %d)', batch.length, messages.length, batches.length)
 		handlePause()
 		startFlushTimeout()
 	}
@@ -256,10 +263,10 @@ export default node => {
 			flush_timeout: timeout
 		} = node.getConfig()
 		flushTimeout = setTimeout(() => {
-			if ( messages.length > 0 && batches.length === 0 ) {
+			if ( messages.length > 0 ) {
 				createBatch()
 			}
-			flush()
+			checkForFlush()
 		}, timeout)
 	}
 

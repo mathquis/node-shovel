@@ -2,19 +2,26 @@ import File from 'fs'
 import Path from 'path'
 import HTTP from 'http'
 import HTTPS from 'https'
-import {Client, errors} from '@elastic/elasticsearch'
 import Fetch from 'node-fetch'
 
 const META_INDEX_TEMPLATE = 'output-elasticsearch-index-name'
 const META_ERROR          = 'output-elasticsearch-error'
 
+const VERSION_LATEST = 'latest'
+const VERSION_COMPAT = 'compat'
+
 export default node => {
-   let client, agent, templateCreated, flushTimeout
+   let client, agent, templateCreated, flushTimeout, connectivityTimeout, cluster
 
    let queue = []
 
    node
       .registerConfig({
+         version: {
+            doc: '',
+            format: ['5', '6', '7', '8', VERSION_LATEST, VERSION_COMPAT],
+            default: VERSION_LATEST
+         },
          url: {
             doc: '',
             format: String,
@@ -39,7 +46,7 @@ export default node => {
          reject_unauthorized: {
             doc: '',
             format: Boolean,
-            default: true
+            default: false
          },
          index_name: {
             doc: '',
@@ -61,37 +68,51 @@ export default node => {
             format: 'duration',
             default: '5s'
          },
-         compat: {
+         document_type: {
+            doc: '',
+            format: String,
+            nullable: true,
+            default: null
+         },
+         sniffing: {
             doc: '',
             format: Boolean,
             default: false
          },
-         document_type: {
+         warnings: {
             doc: '',
-            format: String,
-            default: 'logs'
+            format: Boolean,
+            default: true
          }
       })
       .onStart(async () => {
-         if ( node.getConfig('compat') ) {
+         const connected = await checkConnectivity()
+
+         const {version} = node.getConfig()
+         if ( version === VERSION_COMPAT ) {
             node.log.warn('Using compatibility mode')
-            setupAgent()
          } else {
-            setupClient()
+            node.log.info('Using client (version: %s)', version)
+            await setupClient()
          }
-         try {
-            await setupTemplate()
-         } catch (err) {
-            node.log.warn(err.message)
+
+         if ( connected ) {
+            try {
+               await setupTemplate()
+            } catch (err) {
+               node.log.warn(err.message)
+            }
          }
-         await node.up()
-      })
-      .onDown(async () => {
-         await node.pause()
+
+         return connected
       })
       .onUp(async () => {
-         await node.resume()
-         startFlushTimeout()
+         stopConnectivityCheck()
+      })
+      .onDown(async () => {
+         startConnectivityCheck()
+         queue.forEach(message => node.nack(message))
+         queue = []
       })
       .onPause(async () => {
          stopFlushTimeout()
@@ -100,6 +121,10 @@ export default node => {
          startFlushTimeout()
       })
       .onIn(async (message) => {
+         if ( !node.isUp ) {
+            node.nack(message)
+            return
+         }
          const {
             batch_size: batchSize
          } = node.getConfig()
@@ -109,118 +134,23 @@ export default node => {
          }
       })
 
-   async function flush() {
-      stopFlushTimeout()
-
+   async function bulk(batch) {
       const {
-         batch_size: batchSize
+         index_name: indexName,
+         version
       } = node.getConfig()
 
-      const batch = queue.splice(0, batchSize)
-
-      if ( batch.length === 0 ) {
-         startFlushTimeout()
-         return
-      }
-
-      try {
-         await setupTemplate()
-      } catch (err) {
-         node.log.warn(err.message)
-         batch.forEach(message => {
-            node.nack(message)
-         })
-         startFlushTimeout()
-         return
-      }
+      await setupTemplate()
 
       node.log.debug('Flushing (messages: %d)', batch.length)
 
-      const errorIds = new Map()
-
       const st = (new Date()).getTime()
 
-      const {
-         index_name: indexName,
-         compat,
-         document_type: documentType
-      } = node.getConfig()
-
-      try {
-         let response
-         if ( compat ) {
-            response = await request('POST', '/_bulk?filterPath=items.*.error,items.*._id', batch.reduce((body, message) => {
-               const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
-               return body + JSON.stringify({
-                  index: {
-                     _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
-                     _type: documentType,
-                     _id: message.uuid
-                  }
-               }) + '\n' + JSON.stringify(message.content) + '\n'
-            }, ''))
-
-            // Get messages in error
-            if ( response.errors ) {
-               response.items.forEach(({index: result}) => {
-                  if ( result.status >= 400 ) {
-                     node.log.warn(result.error)
-                     errorIds.set(result._id, result.error)
-                  }
-               })
-            }
-         } else {
-            const body = []
-
-            batch.forEach(message => {
-               const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
-               body.push({
-                  index: {
-                     _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
-                     _id: message.uuid
-                  }
-               })
-               body.push(message.content)
-            })
-
-            const data = {
-               _source: ['uuid'],
-               body
-            }
-
-            response = await client.bulk(data, {
-               filterPath: 'items.*.error,items.*._id'
-            })
-
-            // Get messages in error
-            if ( response.errors ) {
-               response.items.forEach(({index: result}) => {
-                  if ( result.status >= 400 ) {
-                     node.log.warn(result.error.reason)
-                     errorIds.set(result._id, result.error.reason)
-                  }
-               })
-            }
-         }
-
-         const et = (new Date()).getTime()
-
-         node.log.info('Flushed (messages: %d, time: %fms)', batch.length, et-st)
-
-         node.up()
-
-      } catch (err) {
-         node.error(err)
-
-         if ( err instanceof errors.ConnectionError ) {
-            node.down()
-         } else if ( err instanceof errors.NoLivingConnectionsError ) {
-            node.down()
-         }
-
-         batch.forEach(message => {
-            errorIds.set(message.id, true)
-         })
+      let errorIds
+      if ( version === VERSION_COMPAT ) {
+         errorIds = await bulkCompat(indexName, batch)
+      } else {
+         errorIds = await bulkClient(indexName, batch)
       }
 
       // Notify messages processing
@@ -234,10 +164,121 @@ export default node => {
          }
       })
 
+      const et = (new Date()).getTime()
+
+      node.log.info('Flushed (messages: %d, time: %fms)', batch.length, et-st)
+
+      node.up()
+   }
+
+   async function flush() {
+      stopFlushTimeout()
+
+      const {
+         batch_size: batchSize
+      } = node.getConfig()
+
+      const batch = queue.splice(0, batchSize)
+
+      if ( batch.length > 0 ) {
+         try {
+            await bulk(batch)
+         } catch (err) {
+            node.error(err)
+            node.pause()
+            node.down()
+            batch.forEach(message => node.nack(message))
+         }
+      }
+
       startFlushTimeout()
    }
 
-   function setupClient() {
+   async function bulkClient(indexName, batch) {
+      const body = []
+
+      const errorIds = new Map()
+
+      batch.forEach(message => {
+         const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
+         body.push({
+            index: {
+               _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+               _id: message.uuid
+            }
+         })
+         body.push(message.content)
+      })
+
+      const data = {
+         _source: ['uuid'],
+         body
+      }
+
+      const response = await client.bulk(data, {
+         filterPath: 'items.*.error,items.*._id'
+      })
+
+      // Get messages in error
+      if ( response.errors ) {
+         response.items.forEach(({index: result}) => {
+            if ( result.status >= 400 ) {
+               node.log.warn(result.error.reason)
+               errorIds.set(result._id, result.error.reason)
+            }
+         })
+      }
+
+      return errorIds
+   }
+
+   async function bulkCompat(indexName, batch) {
+      const {
+         warnings,
+         document_type: documentType
+      } = node.getConfig()
+
+      const errorIds = new Map()
+
+      const body = batch.reduce((body, message) => {
+         const indexTemplate = message.getHeader(META_INDEX_TEMPLATE) || indexName
+         return body + JSON.stringify({
+            index: {
+               _index: node.util.renderTemplate(indexTemplate, message).toLowerCase(),
+               _type: documentType || undefined,
+               _id: message.uuid
+            }
+         }) + '\n' + JSON.stringify(message.content) + '\n'
+      }, '')
+
+      const response = await request('POST', '/_bulk?filter_path=items.*.error,items.*._id', body, {
+         'Content-Type': 'application/x-ndjson'
+      })
+
+      if ( warnings && response.headers.get('warning') ) {
+         node.log.warn(response.headers.get('warning'))
+      }
+
+      if ( !response.ok ) {
+         throw new Error(response.statusText)
+      }
+
+      const responseBody = await response.json()
+
+      // Get messages in error
+      if ( responseBody.errors ) {
+         responseBody.items.forEach(({index: result}) => {
+            if ( result.status >= 400 ) {
+               node.log.warn(result.error)
+               errorIds.set(result._id, result.error)
+            }
+         })
+      }
+
+      return errorIds
+   }
+
+   async function setupClient() {
       templateCreated = false
 
       let {
@@ -245,6 +286,8 @@ export default node => {
          username,
          password,
          ca_file,
+         version,
+         sniffing,
          reject_unauthorized: rejectUnauthorized
       } = node.getConfig()
 
@@ -254,16 +297,36 @@ export default node => {
          ca = File.readFileSync(caPath)
       }
 
+      let library
+      switch ( version ) {
+         case '5':
+            library = await import('elasticsearch-5')
+            break
+         case '6':
+            library = await import('elasticsearch-6')
+            break
+         case '7':
+            library = await import('elasticsearch-7')
+            break
+         case '8':
+         case VERSION_LATEST:
+            library = await import('elasticsearch-8')
+            break
+      }
+
+      const {Client} = library
+
       const opts = {
          node: url,
          auth: {
             username,
             password
          },
-         ssl: {
+         tls: {
             ca,
             rejectUnauthorized
-         }
+         },
+         sniffOnStart: sniffing
       }
 
       node.log.info('Using index "%s"', node.getConfig('index_name'))
@@ -271,27 +334,27 @@ export default node => {
       client = new Client(opts)
    }
 
-   function setupAgent() {
-         const {ca_file, url} = node.getConfig()
+   function loadIfExists(file) {
+      if ( !file ) {
+         return
+      }
+      return File.readFileSync(Path.resolve(node.pipelineConfig.path, file))
+   }
 
-         let ca
-         if ( ca_file ) {
-            ca = loadIfExists(ca_file)
-         }
+   async function getClusterInfo() {
+      cluster = {}
 
-         if ( url.match(/^https:/i) ) {
-            agent = new HTTPS.Agent({
-               cert: ca
-            })
-         } else {
-            agent = new HTTP.Agent({})
-         }
+      const response = await request('GET', '/', null, {'Content-Type': 'application/json'})
+
+      cluster = await response.json()
+
+      node.log.info('Connected (cluster: %s, node: %s, version: %s, lucene: %s, min-wire-version: %s)', cluster.cluster_name, cluster.name, cluster.version.number, cluster.version.lucene_version, cluster.version.minimum_wire_compatibility_version)
    }
 
    async function setupTemplate() {
       if ( templateCreated ) return
 
-      const {template, compat} = node.getConfig()
+      const {template, version} = node.getConfig()
       if ( template ) {
          node.log.debug('Setting up template...')
 
@@ -317,8 +380,11 @@ export default node => {
 
          try {
             node.log.debug('Creating template...')
-            if ( compat ) {
-               const response = await request('PUT', `/_template/${tpl.name}`, tpl.template)
+            if ( version === VERSION_COMPAT ) {
+               const response = await request('PUT', `/_template/${tpl.name}`, tpl.template, {'Content-Type': 'application/json'})
+               if ( response.status >= 400 ) {
+                  throw new Error(response.error.reason)
+               }
                // TODO: check response
             } else {
                await client.indices.putTemplate({
@@ -335,16 +401,57 @@ export default node => {
       templateCreated = true
    }
 
-   async function request(method, path, payload) {
+   function setupAgent() {
+         const {ca_file, url} = node.getConfig()
+
+         let ca
+         if ( ca_file ) {
+            ca = loadIfExists(ca_file)
+         }
+
+         if ( url.match(/^https:/i) ) {
+            agent = new HTTPS.Agent({
+               cert: ca,
+               rejectUnauthorized: false
+            })
+         } else {
+            agent = new HTTP.Agent({})
+         }
+   }
+
+   async function request(method, path, payload, headers) {
+      if ( !agent ) {
+         const {
+            url,
+            ca_file,
+            reject_unauthorized: rejectUnauthorized
+         } = node.getConfig()
+
+         let cert
+         if ( ca_file ) {
+            cert = loadIfExists(ca_file)
+         }
+
+         if ( url.match(/^https:/i) ) {
+            agent = new HTTPS.Agent({
+               cert,
+               rejectUnauthorized
+            })
+         } else {
+            agent = new HTTP.Agent({})
+         }
+      }
+
       let {url, username, password} = node.getConfig()
 
       method = method.toUpperCase()
-      const headers = {}
+
+      headers || (headers = {})
 
       // Authentification
       if ( username ) {
          const authorization = `${username}:${password}`
-         headers['Authorization'] = `Basic ${authorization.toString('base64')}`
+         headers['Authorization'] = `Basic ${Buffer.from(authorization).toString('base64')}`
       }
 
       const req = {
@@ -357,9 +464,7 @@ export default node => {
 
       node.log.debug('Requesting compatibility API endpoint (method: %s, url: %s)', req.method, req.url)
 
-      const response = await Fetch(req.url, req)
-
-      return await response.json()
+      return Fetch(req.url, req)
    }
 
    function startFlushTimeout() {
@@ -376,5 +481,34 @@ export default node => {
       if ( !flushTimeout ) return
       clearTimeout(flushTimeout)
       flushTimeout = null
+   }
+
+   async function checkConnectivity() {
+      try {
+         await getClusterInfo()
+         await node.up()
+         await node.resume()
+         return true
+      } catch (err) {
+         if ( node.isUp ) {
+            node.log.warn('Cluster is not reachable')
+         }
+         node.pause()
+         node.down()
+         startConnectivityCheck()
+         return false
+      }
+   }
+
+   function startConnectivityCheck() {
+      stopConnectivityCheck()
+      connectivityTimeout = setTimeout(checkConnectivity, 5000)
+   }
+
+   function stopConnectivityCheck() {
+      if ( connectivityTimeout ) {
+         clearTimeout(connectivityTimeout)
+         connectivityTimeout = null
+      }
    }
 }

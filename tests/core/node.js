@@ -253,8 +253,8 @@ describe('Node', () => {
 
 		expect(node.isStarted).toBeTruthy()
 		expect(node.isUp).toBeFalsy()
-		expect(node.isPaused).toBeFalsy()
-		expect(listener).not.toHaveBeenCalled()
+		expect(node.isPaused).toBeTruthy()
+		expect(listener).toHaveBeenCalled()
 	})
 
 	test('resume: not up', async () => {
@@ -271,8 +271,8 @@ describe('Node', () => {
 
 		expect(node.isStarted).toBeTruthy()
 		expect(node.isUp).toBeFalsy()
-		expect(node.isPaused).toBeTruthy()
-		expect(listener).not.toHaveBeenCalled()
+		expect(node.isPaused).toBeFalsy()
+		expect(listener).toHaveBeenCalled()
 	})
 
 	test('in: listener', async () => {

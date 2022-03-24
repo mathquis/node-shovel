@@ -14,8 +14,9 @@ export default class NodeOperator extends EventEmitter {
 
       this.isLoaded  = false
       this.isStarted = false
-      this.isUp      = false
-      this.isPaused  = false
+      this.isUp      = null
+      this.isPaused  = null
+      this.lock      = null
 
       this.emitter = new EventEmitter()
 
@@ -29,10 +30,9 @@ export default class NodeOperator extends EventEmitter {
 
       this.protocol = protocol
 
-      this.log = this.createLogger(this.constructor.name)
-
       this.configure(this.options)
 
+      this.log = this.createLogger(this.constructor.name)
       this.log.debug('%O', this.config.get('options'))
 
       this.setupMonitoring()
@@ -77,7 +77,7 @@ export default class NodeOperator extends EventEmitter {
          return $1 + '-' + $2.toLowerCase()
       }).toLowerCase()
 
-      return Logger.child({category, worker, pipeline: this.pipelineConfig.name})
+      return Logger.child({category, worker, pipeline: this.pipelineConfig.name, node: this.name})
    }
 
    createApi() {
@@ -361,11 +361,11 @@ export default class NodeOperator extends EventEmitter {
          })
       node
          .on(NodeEvent.PAUSE, () => {
-            this.pause()
+            this.pause(true)
          })
       node
          .on(NodeEvent.RESUME, () => {
-            this.resume()
+            this.resume(true)
          })
 
       return node
@@ -390,7 +390,7 @@ export default class NodeOperator extends EventEmitter {
    }
 
    async up() {
-      if ( this.isUp ) return
+      if ( this.isUp === true ) return
       this.isUp = true
       this.status.set({...this.defaultLabels, kind: 'up'}, 1)
       await this.forwardEvent(NodeEvent.UP)
@@ -398,25 +398,29 @@ export default class NodeOperator extends EventEmitter {
    }
 
    async down() {
-      if ( !this.isUp ) return
+      if ( this.isUp === false ) return
       this.isUp = false
-      this.status.set({...this.defaultLabels, kind: 'down'}, 0)
+      this.status.set({...this.defaultLabels, kind: 'up'}, 0)
       await this.forwardEvent(NodeEvent.DOWN)
       this.log.info('"v Down"')
    }
 
-   async pause() {
-      if ( !this.isUp ) return
-      if ( this.isPaused ) return
+   async pause(lock) {
+      if ( this.isPaused === true ) return
+      if ( !lock && this.locked ) return
       this.isPaused = true
+      this.locked = !!lock
+      this.status.set({...this.defaultLabels, kind: 'pause'}, 1)
       await this.forwardEvent(NodeEvent.PAUSE)
       this.log.info('| Paused')
    }
 
-   async resume() {
-      if ( !this.isUp ) return
-      if ( !this.isPaused ) return
+   async resume(lock) {
+      if ( this.isPaused === false ) return
+      if ( !lock && this.locked ) return
       this.isPaused = false
+      this.locked = false
+      this.status.set({...this.defaultLabels, kind: 'pause'}, 0)
       await this.forwardEvent(NodeEvent.RESUME)
       this.log.info('> Resumed')
    }
@@ -444,16 +448,18 @@ export default class NodeOperator extends EventEmitter {
             shouldPropagate = results.indexOf(false) < 0
          }
          this.log.debug('Checking propagation (event: %s, forward: %s)', event, shouldPropagate)
-         if ( shouldPropagate && this.listenerCount(event) > 0 ) {
-            await this.emit(event, message)
+         if ( shouldPropagate ) {
+            this.counter.inc({...this.defaultLabels, kind: event})
+            if ( this.listenerCount(event) > 0 ) {
+               await this.emit(event, message)
+            }
          }
       } catch (err) {
          this.error(err, message)
-         if ( event !== NodeEvent.REJECT ) {
+         if ( message && event !== NodeEvent.REJECT ) {
             this.reject(message)
          }
       }
-      this.counter.inc({...this.defaultLabels, kind: event})
       return shouldPropagate
    }
 
