@@ -220,8 +220,8 @@ export default node => {
       })
 
       // Get messages in error
-      if ( response.errors ) {
-         response.items.forEach(({index: result}) => {
+      if ( !!response.body.errors ) {
+         response.body.items.forEach(({index: result}) => {
             if ( result.status >= 400 ) {
                node.log.warn(result.error.reason)
                errorIds.set(result._id, result.error.reason)
@@ -373,6 +373,7 @@ export default node => {
                name: tpl.name
             })
             node.log.debug('Template already created')
+            templateCreated = true
             return
          } catch (err) {
             node.log.warn('Template "%s" not created', tpl.name)

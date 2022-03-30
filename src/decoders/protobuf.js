@@ -3,6 +3,12 @@ import Protobuf from 'protobufjs'
 
 const META_PROTOBUF_CLASS_NAME = 'decoder-protobuf-class-name'
 
+const decodeOptions = {
+	longs: String,
+	enums: String,
+	bytes: String
+}
+
 export default node => {
 	let root
 	let remainder = Buffer.alloc(0)
@@ -97,7 +103,7 @@ export default node => {
 				msg = messageClass.decode(payload)
 				break
 		}
-		message.decode(messageClass.toObject(msg))
+		message.decode(messageClass.toObject(msg, decodeOptions))
 		message.setHeader(META_PROTOBUF_CLASS_NAME, className)
 		node.out(message)
 	}
@@ -113,7 +119,7 @@ export default node => {
 			while ( reader.pos < reader.len ) {
 				lastPos = reader.pos
 				const proto = messageClass.decodeDelimited(reader)
-				const content = messageClass.toObject(proto)
+				const content = messageClass.toObject(proto, decodeOptions)
 				const newMessage = message.clone()
 				newMessage
 					.decode(content)
