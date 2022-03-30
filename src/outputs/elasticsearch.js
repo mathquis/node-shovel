@@ -428,8 +428,11 @@ export default node => {
             reject_unauthorized: rejectUnauthorized
          } = node.getConfig()
 
+         node.log.info('Using "%s"', url)
+
          let cert
          if ( ca_file ) {
+            node.log.info('Using certificate "%s" (reject: %s)', ca_file, rejectUnauthorized)
             cert = loadIfExists(ca_file)
          }
 
@@ -492,7 +495,7 @@ export default node => {
          return true
       } catch (err) {
          if ( node.isUp ) {
-            node.log.warn('Cluster is not reachable')
+            node.log.warn(err.message)
          }
          node.pause()
          node.down()
