@@ -44,7 +44,7 @@
     "elasticsearch-7": "npm:@elastic/elasticsearch@^7.17.0",
     "elasticsearch-8": "npm:@elastic/elasticsearch@^8.2.1",
     "events-async": "^1.2.1",
-    "glob": "^7.2.3",
+    "glob": "^8.0.3",
     "js-yaml": "^4.1.0",
     "json-colorizer": "^2.2.2",
     "json5": "^2.2.1",

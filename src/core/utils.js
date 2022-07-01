@@ -84,7 +84,7 @@ function asArray(value) {
 
 async function glob(pattern) {
    return new Promise((resolve, reject) => {
-      glob(pattern, (err, files) => {
+      Glob(pattern, (err, files) => {
          if ( err ) {
             reject(err)
             return
