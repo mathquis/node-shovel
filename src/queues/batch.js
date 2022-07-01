@@ -1,8 +1,9 @@
 import File	from 'fs'
 import Path	from 'path'
 import Cluster from 'cluster'
-import Level from 'level'
-import LevelMem	from 'level-mem'
+import {Level} from 'level'
+import {MemoryLevel} from 'memory-level'
+import {EntryStream} from 'level-read-stream'
 import {unpack, pack} from 'msgpackr'
 
 const META_QUEUE_RETRIES	= 'queue-retries'
@@ -63,12 +64,13 @@ export default node => {
 			// Check path
 			await File.promises.mkdir(dbPath, {recursive: true})
 
-			const Storage = persistent ? Level : LevelMem
-
 			// Create database
 			const queueName = `queued-${node.pipelineConfig.name}-${Cluster.worker.id}`
 			const queuedDbPath = Path.resolve(dbPath + Path.sep + queueName)
-			db = Storage(queuedDbPath, {
+
+			const storage = persistent ? Level : MemoryLevel
+
+			db = new storage(queuedDbPath, {
 				valueEncoding: {
 					type: 'msgpack',
 					encode: pack,
@@ -76,11 +78,12 @@ export default node => {
 					buffer: true
 				}
 			})
+
 			node.log.info('Opened queue at "%s" (persistent: %s, batch: %d, timeout: %d)', queuedDbPath, persistent, batchSize, timeout)
 
 			await new Promise((resolve, reject) => {
-				db
-					.createValueStream()
+				const stream = new EntryStream(db)
+				stream
 					.on('data', obj => {
 						const message = node.createMessage()
 						message.fromObject(obj)
