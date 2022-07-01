@@ -317,7 +317,11 @@ export default class NodeOperator extends EventEmitter {
       config.options || (config.options = {})
       this.config = Convict(this.configSchema || {})
       this.config.load(config)
-      this.config.validate({allowed: 'strict'})
+      try {
+         this.config.validate({allowed: 'strict'})
+      } catch (err) {
+         throw new Error(`${this.constructor.name}[${this.name}] ${err.message}`)
+      }
    }
 
    createMessage(data) {
