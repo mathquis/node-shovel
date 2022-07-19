@@ -168,6 +168,7 @@ export default node => {
          channel = null
       }
       node.down()
+      consuming = false
       clearReconnectTimeout()
       reconnectTimeout = setTimeout(() => {
          connect()
