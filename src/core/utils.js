@@ -2,11 +2,11 @@ import { pathToFileURL } from 'node:url'
 import File from 'fs'
 import Path from 'path'
 import ContentTypeParser from 'whatwg-mimetype'
-import Glob from 'glob'
+import {Glob} from 'glob'
 import CUID from 'cuid'
 import Pupa from 'pupa'
 import DurationParser from 'parse-duration'
-import Luxon from 'luxon'
+import {DateTime} from 'luxon'
 import Logger from './logger.js'
 
 const log = Logger.child({category: 'utils'})
@@ -101,7 +101,7 @@ const Duration = {
 }
 
 const Utils = {
-   loadFn, renderTemplate, parseContentType, translate, asArray, glob, Duration, CUID, Time: Luxon
+   loadFn, renderTemplate, parseContentType, translate, asArray, glob, Duration, CUID, Time: DateTime
 }
 
 export default Utils
